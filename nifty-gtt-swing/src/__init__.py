@@ -1,0 +1,1 @@
+"""nifty-gtt-swing package"""

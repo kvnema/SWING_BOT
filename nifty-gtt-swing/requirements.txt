@@ -1,0 +1,13 @@
+pandas
+numpy
+pyyaml
+scipy
+matplotlib
+requests
+python-dotenv
+rich
+tabulate
+pytest
+pytz
+openpyxl
+seaborn

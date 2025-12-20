@@ -1,0 +1,3 @@
+2025-12-20 10:53:06,434 - ERROR - Unexpected error: UPSTOX_ACCESS_TOKEN not set in .env
+2025-12-20 10:53:14,042 - INFO - Main indicators: nifty50_indicators_renamed.csv: earliest=2023-12-19, latest=2025-12-17, days=497, symbols=48, rows=23856
+2025-12-20 10:53:14,042 - ERROR - Validation failed: Stale data: latest_date=2025-12-17 is 3 days old (max_age_days=1, today_ist=2025-12-20)
