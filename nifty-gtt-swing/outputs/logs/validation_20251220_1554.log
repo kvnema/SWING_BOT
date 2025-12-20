@@ -1,0 +1,2 @@
+2025-12-20 15:54:02,602 - INFO - Main indicators: indicators_500d.parquet: earliest=2024-08-07, latest=2025-12-19, days=342, symbols=47, rows=16074
+2025-12-20 15:54:02,602 - ERROR - Validation failed: Insufficient coverage: trading_days_count=342 (< required_days=500). earliest_date=2024-08-07, latest_date=2025-12-19
