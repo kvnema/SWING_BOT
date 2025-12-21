@@ -1,0 +1,2 @@
+2025-12-21 01:13:05,717 - ERROR - Validation failed: File not found: C:\Users\K01340\SWING_BOT_GIT\SWING_BOT\data\nifty50_indicators_full.csv
+2025-12-21 01:13:59,394 - ERROR - Validation failed: Failed to load metadata from C:\Users\K01340\SWING_BOT_GIT\SWING_BOT\nifty50_indicators_full.csv: Missing 'Symbol' column in C:\Users\K01340\SWING_BOT_GIT\SWING_BOT\nifty50_indicators_full.csv
