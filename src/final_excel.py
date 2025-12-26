@@ -86,9 +86,10 @@ class FinalExcelGenerator:
         ws['E4'].font = Font(bold=True)
 
         if not gtt_df.empty:
-            total_value = gtt_df['Actual_Position_Value'].sum()
-            total_risk = gtt_df['risk_amount'].sum()
-            avg_confidence = gtt_df['Decision_Confidence'].mean()
+            # Calculate total value from Qty * ENTRY_trigger_price
+            total_value = (gtt_df['Qty'] * gtt_df['ENTRY_trigger_price']).sum()
+            total_risk = gtt_df['Risk_Amount'].sum() if 'Risk_Amount' in gtt_df.columns else 0
+            avg_confidence = gtt_df['DecisionConfidence'].mean()
 
             ws['E5'] = f"Total Positions: {len(gtt_df)}"
             ws['E6'] = f"Total Value: ₹{total_value:,.0f}"
@@ -101,7 +102,7 @@ class FinalExcelGenerator:
 
     def create_gtt_plan_sheet(self, wb: Workbook, gtt_df: pd.DataFrame) -> None:
         """Create GTT plan details sheet."""
-        ws = wb.create_sheet("GTT_Plan")
+        ws = wb.create_sheet("GTT-Delivery-Plan")
 
         # Title
         ws['A1'] = "GTT Delivery Orders"
@@ -111,42 +112,78 @@ class FinalExcelGenerator:
             ws['A3'] = "No GTT plan data available"
             return
 
-        # Headers
+        # Specific column ordering as per requirements
         headers = [
-            'Symbol', 'Position_Size', 'Actual_Position_Value', 'Trigger_Price',
-            'Target_Price', 'Stop_Price', 'Decision_Confidence', 'Confidence_Level',
-            'Risk_Reward_Ratio', 'Sizing_Explanation', 'GTT_Explanation'
+            'Symbol', 'Qty', 'ENTRY_trigger_price', 'TARGET_trigger_price', 'STOPLOSS_trigger_price',
+            'DecisionConfidence', 'Confidence_Level', 'R', 'Explanation', 'GTT_Explanation',
+            'RSI14_D', 'RSI_Above50_D', 'RSI_Overbought_D', 'MACD_Line_D', 'MACD_Signal_D', 'MACD_Hist_D', 'MACD_CrossUp_D', 'MACD_AboveZero_D',
+            'RSI14_H4', 'RSI_Above50_H4', 'MACD_CrossUp_H4',
+            'RSI_MACD_Confirmations_OK', 'RSI_MACD_Notes',
+            'Audit_Flag', 'Issues', 'Fix_Suggestion', 'Pivot_Source', 'Entry_Logic', 'Stop_Logic', 
+            'Target_Logic', 'Latest_Close', 'Latest_LTP', 'Canonical_Entry', 'Canonical_Stop', 'Canonical_Target'
         ]
 
+        # Write headers
         for j, header in enumerate(headers, 1):
             cell = ws[f'{get_column_letter(j)}2']
             cell.value = header
             cell.font = Font(bold=True)
             cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
 
-        # Data
+        # Data - write in specific column order
         for i, (_, row) in enumerate(gtt_df.iterrows(), 3):
             ws[f'A{i}'] = row.get('Symbol', '')
-            ws[f'B{i}'] = row.get('Position_Size', 0)
-            ws[f'C{i}'] = row.get('Actual_Position_Value', 0)
-            ws[f'D{i}'] = row.get('Trigger_Price', 0)
-            ws[f'E{i}'] = row.get('Target_Price', 0)
-            ws[f'F{i}'] = row.get('Stop_Price', 0)
-            ws[f'G{i}'] = row.get('Decision_Confidence', 0)
-            ws[f'H{i}'] = row.get('Confidence_Level', '')
-            ws[f'I{i}'] = row.get('Risk_Reward_Ratio', 0)
-            ws[f'J{i}'] = row.get('Sizing_Explanation', '')
-            ws[f'K{i}'] = row.get('GTT_Explanation', '')
+            ws[f'B{i}'] = row.get('Qty', 0)
+            ws[f'C{i}'] = row.get('ENTRY_trigger_price', 0)
+            ws[f'D{i}'] = row.get('TARGET_trigger_price', 0)
+            ws[f'E{i}'] = row.get('STOPLOSS_trigger_price', 0)
+            ws[f'F{i}'] = row.get('DecisionConfidence', 0)
+            ws[f'G{i}'] = row.get('Confidence_Level', '')
+            ws[f'H{i}'] = row.get('R', 0)
+            ws[f'I{i}'] = row.get('Explanation', '')
+            ws[f'J{i}'] = row.get('GTT_Explanation', '')
+            ws[f'K{i}'] = row.get('RSI14', 0)  # RSI14_D
+            ws[f'L{i}'] = row.get('RSI_Above50', False)  # RSI_Above50_D
+            ws[f'M{i}'] = row.get('RSI_Overbought', False)  # RSI_Overbought_D
+            ws[f'N{i}'] = row.get('MACD_Line', 0)  # MACD_Line_D
+            ws[f'O{i}'] = row.get('MACD_Signal', 0)  # MACD_Signal_D
+            ws[f'P{i}'] = row.get('MACD_Hist', 0)  # MACD_Hist_D
+            ws[f'Q{i}'] = row.get('MACD_CrossUp', False)  # MACD_CrossUp_D
+            ws[f'R{i}'] = row.get('MACD_AboveZero', False)  # MACD_AboveZero_D
+            ws[f'S{i}'] = row.get('RSI14_H4', 0)  # RSI14_H4
+            ws[f'T{i}'] = row.get('RSI_Above50_H4', False)  # RSI_Above50_H4
+            ws[f'U{i}'] = row.get('MACD_CrossUp_H4', False)  # MACD_CrossUp_H4
+            ws[f'V{i}'] = row.get('RSI_MACD_Confirmations_OK', False)
+            ws[f'W{i}'] = row.get('RSI_MACD_Notes', '')
+            ws[f'X{i}'] = row.get('Audit_Flag', '')
+            ws[f'Y{i}'] = row.get('Issues', '')
+            ws[f'Z{i}'] = row.get('Fix_Suggestion', '')
+            ws[f'AA{i}'] = row.get('Pivot_Source', '')
+            ws[f'AB{i}'] = row.get('Entry_Logic', '')
+            ws[f'AC{i}'] = row.get('Stop_Logic', '')
+            ws[f'AD{i}'] = row.get('Target_Logic', '')
+            ws[f'AE{i}'] = row.get('Latest_Close', '')
+            ws[f'AF{i}'] = row.get('Latest_LTP', '')
+            ws[f'AG{i}'] = row.get('Canonical_Entry', '')
+            ws[f'AH{i}'] = row.get('Canonical_Stop', '')
+            ws[f'AI{i}'] = row.get('Canonical_Target', '')
 
-        # Conditional formatting for confidence
+        # Conditional formatting for confidence (column F)
         for i in range(3, len(gtt_df) + 3):
-            confidence_cell = ws[f'G{i}']
+            confidence_cell = ws[f'F{i}']
             if confidence_cell.value >= 4:
                 confidence_cell.fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")  # Green
             elif confidence_cell.value >= 3:
                 confidence_cell.fill = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")  # Yellow
             else:
                 confidence_cell.fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")  # Red
+            
+            # Conditional formatting for audit flag (column K)
+            audit_cell = ws[f'K{i}']
+            if audit_cell.value == 'FAIL':
+                audit_cell.fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")  # Red
+            elif audit_cell.value == 'PASS':
+                audit_cell.fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")  # Green
 
         # Auto-adjust column widths
         for j in range(1, len(headers) + 1):

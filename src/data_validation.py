@@ -59,14 +59,20 @@ def load_metadata(csv_or_parquet_path: str) -> DataMetadata:
         if df.empty:
             raise ValidationError(f"No valid dates in {path.absolute()}")
 
-        # Ensure Symbol column exists
-        if 'Symbol' not in df.columns:
-            raise ValidationError(f"Missing 'Symbol' column in {path.absolute()}")
+        # Ensure Symbol column exists (or Stock for legacy data)
+        symbol_col = None
+        if 'Symbol' in df.columns:
+            symbol_col = 'Symbol'
+        elif 'Stock' in df.columns:
+            symbol_col = 'Stock'
+        
+        if symbol_col is None:
+            raise ValidationError(f"Missing 'Symbol' or 'Stock' column in {path.absolute()}")
 
         # Compute metadata
         latest_date = df['Date'].max()
         earliest_date = df['Date'].min()
-        symbols_present = set(df['Symbol'].dropna().unique())
+        symbols_present = set(df[symbol_col].dropna().unique())
         rows_count = len(df)
 
         # Trading days count: unique dates
@@ -74,8 +80,8 @@ def load_metadata(csv_or_parquet_path: str) -> DataMetadata:
 
         # Check if sorted by Symbol then Date
         is_sorted_by_symbol_date = (
-            df.sort_values(['Symbol', 'Date']).equals(df) or
-            df.sort_values(['Date', 'Symbol']).equals(df)
+            df.sort_values([symbol_col, 'Date']).equals(df) or
+            df.sort_values(['Date', symbol_col]).equals(df)
         )
 
         return DataMetadata(

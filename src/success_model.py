@@ -72,6 +72,21 @@ def make_buckets(df: pd.DataFrame, today: pd.Timestamp) -> pd.DataFrame:
     else:
         df['RSI14_Status'] = 'Neutral'
     
+    # MACD buckets
+    macd_line = df.get('MACD_Line')
+    if macd_line is not None and isinstance(macd_line, pd.Series):
+        df['MACD_Regime'] = pd.cut(macd_line.values,
+                                   bins=[-np.inf, 0, np.inf],
+                                   labels=['BelowZero', 'AboveZero'])
+    else:
+        df['MACD_Regime'] = 'AboveZero'
+    
+    macd_cross = df.get('MACD_CrossUp')
+    if macd_cross is not None and isinstance(macd_cross, pd.Series):
+        df['MACD_Cross_Status'] = macd_cross.map({True: 'CrossUp', False: 'NoCross'})
+    else:
+        df['MACD_Cross_Status'] = 'NoCross'
+    
     # Golden flags
     if 'GoldenBull_Flag' in df.columns:
         df['GoldenBull_Flag'] = df['GoldenBull_Flag'].astype(int)
@@ -127,8 +142,8 @@ def aggregate_oos(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     
     # Define grouping columns
-    group_cols = ['Strategy', 'Sector', 'Symbol', 'RSI14_Status', 'GoldenBull_Flag', 
-                  'GoldenBear_Flag', 'Trend_OK', 'RVOL20_bucket', 'ATRpct_bucket']
+    group_cols = ['Strategy', 'Sector', 'Symbol', 'RSI14_Status', 'MACD_Regime', 'MACD_Cross_Status',
+                  'GoldenBull_Flag', 'GoldenBear_Flag', 'Trend_OK', 'RVOL20_bucket', 'ATRpct_bucket']
     
     # Recency weights (exponential decay, tau=120 days)
     tau = 120
@@ -225,6 +240,29 @@ def build_hierarchical_model(bt_root: str, today: pd.Timestamp, t_min: int = 30)
     
     bucketed_df = make_buckets(trades_df, today)
     aggregated_df = aggregate_oos(bucketed_df)
+    
+    if aggregated_df.empty:
+        # Fall back to simple strategy-level model
+        print("Complex bucketing failed, using simple strategy-level model")
+        if not trades_df.empty:
+            # Group by strategy and compute basic metrics
+            strategy_model = trades_df.groupby('Strategy').agg({
+                'is_win': ['count', 'mean'],
+                'R': 'mean'
+            }).reset_index()
+            
+            # Flatten columns
+            strategy_model.columns = ['Strategy', 'Trades_OOS', 'OOS_WinRate_raw', 'OOS_ExpectancyR']
+            
+            # Add required columns for compatibility
+            strategy_model['CalibratedWinRate'] = strategy_model['OOS_WinRate_raw']
+            strategy_model['CI_low'] = strategy_model['OOS_WinRate_raw'] - 0.1
+            strategy_model['CI_high'] = strategy_model['OOS_WinRate_raw'] + 0.1
+            strategy_model['CoverageNote'] = 'StrategyLevel'
+            strategy_model['Reliability'] = 1.0
+            strategy_model['WFO_Efficiency'] = 1.0
+            
+            return strategy_model
     
     if aggregated_df.empty:
         return pd.DataFrame()
@@ -374,12 +412,79 @@ def lookup_confidence(model_df: pd.DataFrame, row_ctx: dict, strategy: str) -> d
             'CoverageNote': 'NoModel'
         }
     
-    # Start with full context match
+    # Start with strategy-only match (for simple models)
+    match = model_df[model_df['Strategy'] == strategy]
+    
+    if not match.empty:
+        # Found strategy match, return it
+        bucket = match.iloc[0]
+        return {
+            'DecisionConfidence': bucket.get('CalibratedWinRate', 0.5),
+            'CI_low': bucket.get('CI_low', 0.4),
+            'CI_high': bucket.get('CI_high', 0.6),
+            'OOS_WinRate': bucket.get('OOS_WinRate_raw', 0.5),
+            'OOS_ExpectancyR': bucket.get('OOS_ExpectancyR', 0.0),
+            'Trades_OOS': int(bucket.get('Trades_OOS', 0)),
+            'CoverageNote': bucket.get('CoverageNote', 'StrategyLevel'),
+            'Reliability': bucket.get('Reliability', 1.0),
+            'WFO_Efficiency': bucket.get('WFO_Efficiency', 1.0)
+        }
+    
+    # Handle CompositeScore ensemble
+    if strategy == 'CompositeScore':
+        # Get available strategies in model
+        available_strategies = model_df['Strategy'].unique()
+        if len(available_strategies) > 0:
+            # Weight by OOS trades and reliability
+            weights = {}
+            total_weight = 0
+            
+            for strat in available_strategies:
+                strat_data = model_df[model_df['Strategy'] == strat]
+                if not strat_data.empty:
+                    # Weight by trades * reliability
+                    weight = strat_data['Trades_OOS'].sum() * strat_data['Reliability'].mean()
+                    weights[strat] = weight
+                    total_weight += weight
+            
+            if total_weight > 0:
+                # Compute weighted average confidence
+                weighted_confidence = 0
+                weighted_ci_low = 0
+                weighted_ci_high = 0
+                weighted_winrate = 0
+                weighted_expectancy = 0
+                total_trades = 0
+                
+                for strat, weight in weights.items():
+                    strat_data = model_df[model_df['Strategy'] == strat].iloc[0]
+                    w = weight / total_weight
+                    weighted_confidence += w * strat_data.get('CalibratedWinRate', 0.5)
+                    weighted_ci_low += w * strat_data.get('CI_low', 0.4)
+                    weighted_ci_high += w * strat_data.get('CI_high', 0.6)
+                    weighted_winrate += w * strat_data.get('OOS_WinRate_raw', 0.5)
+                    weighted_expectancy += w * strat_data.get('OOS_ExpectancyR', 0.0)
+                    total_trades += strat_data.get('Trades_OOS', 0)
+                
+                return {
+                    'DecisionConfidence': weighted_confidence,
+                    'CI_low': weighted_ci_low,
+                    'CI_high': weighted_ci_high,
+                    'OOS_WinRate': weighted_winrate,
+                    'OOS_ExpectancyR': weighted_expectancy,
+                    'Trades_OOS': int(total_trades),
+                    'CoverageNote': 'Ensemble',
+                    'Reliability': 1.0,
+                    'WFO_Efficiency': 1.0
+                }
+    # Fall back to original hierarchical matching if no strategy match
     match = model_df[
         (model_df['Strategy'] == strategy) &
         (model_df.get('Sector', pd.Series(['Unknown'] * len(model_df))) == row_ctx.get('Sector', 'Unknown')) &
         (model_df.get('Symbol', pd.Series([''] * len(model_df))) == row_ctx.get('Symbol', '')) &
         (model_df['RSI14_Status'] == row_ctx['RSI14_Status']) &
+        (model_df['MACD_Regime'] == row_ctx['MACD_Regime']) &
+        (model_df['MACD_Cross_Status'] == row_ctx['MACD_Cross_Status']) &
         (model_df['GoldenBull_Flag'] == row_ctx['GoldenBull_Flag']) &
         (model_df['GoldenBear_Flag'] == row_ctx['GoldenBear_Flag']) &
         (model_df['Trend_OK'] == row_ctx['Trend_OK']) &
@@ -395,6 +500,8 @@ def lookup_confidence(model_df: pd.DataFrame, row_ctx: dict, strategy: str) -> d
             (model_df.get('Sector', pd.Series(['Unknown'] * len(model_df))) == row_ctx.get('Sector', 'Unknown')) &
             (model_df.get('Symbol', pd.Series([''] * len(model_df))) == row_ctx.get('Symbol', '')) &
             (model_df['RSI14_Status'] == row_ctx['RSI14_Status']) &
+            (model_df['MACD_Regime'] == row_ctx['MACD_Regime']) &
+            (model_df['MACD_Cross_Status'] == row_ctx['MACD_Cross_Status']) &
             (model_df['GoldenBull_Flag'] == row_ctx['GoldenBull_Flag']) &
             (model_df['GoldenBear_Flag'] == row_ctx['GoldenBear_Flag']) &
             (model_df['Trend_OK'] == row_ctx['Trend_OK']) &
@@ -406,6 +513,8 @@ def lookup_confidence(model_df: pd.DataFrame, row_ctx: dict, strategy: str) -> d
             (model_df.get('Sector', pd.Series(['Unknown'] * len(model_df))) == row_ctx.get('Sector', 'Unknown')) &
             (model_df.get('Symbol', pd.Series([''] * len(model_df))) == row_ctx.get('Symbol', '')) &
             (model_df['RSI14_Status'] == row_ctx['RSI14_Status']) &
+            (model_df['MACD_Regime'] == row_ctx['MACD_Regime']) &
+            (model_df['MACD_Cross_Status'] == row_ctx['MACD_Cross_Status']) &
             (model_df['GoldenBull_Flag'] == row_ctx['GoldenBull_Flag']) &
             (model_df['GoldenBear_Flag'] == row_ctx['GoldenBear_Flag']) &
             (model_df['Trend_OK'] == row_ctx['Trend_OK'])
@@ -415,7 +524,9 @@ def lookup_confidence(model_df: pd.DataFrame, row_ctx: dict, strategy: str) -> d
             (model_df['Strategy'] == strategy) &
             (model_df.get('Sector', pd.Series(['Unknown'] * len(model_df))) == row_ctx.get('Sector', 'Unknown')) &
             (model_df.get('Symbol', pd.Series([''] * len(model_df))) == row_ctx.get('Symbol', '')) &
-            (model_df['RSI14_Status'] == row_ctx['RSI14_Status'])
+            (model_df['RSI14_Status'] == row_ctx['RSI14_Status']) &
+            (model_df['MACD_Regime'] == row_ctx['MACD_Regime']) &
+            (model_df['MACD_Cross_Status'] == row_ctx['MACD_Cross_Status'])
         ],
         # Strategy-level aggregate
         lambda: model_df[model_df['Strategy'] == strategy].groupby('Strategy').agg({

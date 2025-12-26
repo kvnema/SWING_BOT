@@ -1,0 +1,6 @@
+Symbol,ENTRY_trigger_price,STOPLOSS_trigger_price,TARGET_trigger_price,DecisionConfidence,Audit_Flag,Issues,Fix_Suggestion
+RELIANCE,2450.50,2380.25,2550.75,0.85,PASS,,
+TCS,3200.00,3120.00,3320.00,0.78,PASS,,
+INFY,1750.25,1700.00,1825.50,0.92,PASS,,
+HDFC,1650.75,1600.50,1725.00,0.67,FAIL,Price tolerance exceeded,Adjust entry price within 2% of current market price
+ICICIBANK,950.25,920.00,985.50,0.73,PASS,,

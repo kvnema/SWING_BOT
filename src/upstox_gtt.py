@@ -141,3 +141,97 @@ def modify_gtt_order(access_token: str, payload: Dict[str, Any]) -> Dict:
     url = BASE + '/order/gtt/modify'
     resp = requests.post(url, json=payload, headers=_headers(access_token))
     return {'status_code': resp.status_code, 'body': resp.json() if resp.content else {}}
+
+
+def place_gtt_order_multi(instrument_token: str, quantity: int, product: str, rules: list, transaction_type: str, access_token: str, tsl_gap: Optional[float] = None, dry_run: bool = False, retries: int = 3, backoff: float = 1.0, log_path: str = 'outputs/logs/gtt_place_multi.log') -> Dict:
+    """Place multi-leg GTT order with ENTRY, STOPLOSS, TARGET rules.
+
+    Args:
+        instrument_token: Upstox instrument token
+        quantity: Order quantity (1 for testing)
+        product: 'D' for delivery
+        rules: List of rule dicts [{'strategy': 'ENTRY', 'trigger_type': 'ABOVE', 'trigger_price': float}, ...]
+        transaction_type: 'BUY' or 'SELL'
+        access_token: Upstox access token
+        tsl_gap: Optional trailing stop loss gap for STOPLOSS rule
+        dry_run: If True, return payload without API call
+        retries: Number of retry attempts
+        backoff: Base backoff time
+        log_path: Log file path
+
+    Returns:
+        Dict with status_code and body/order_id
+    """
+    payload = {
+        "type": "MULTIPLE",
+        "quantity": quantity,
+        "product": product,
+        "transaction_type": transaction_type,
+        "instrument_token": instrument_token,
+        "rules": rules
+    }
+
+    # Add TSL to STOPLOSS rule if specified
+    if tsl_gap is not None:
+        for rule in payload["rules"]:
+            if rule.get("strategy") == "STOPLOSS":
+                rule["trailing_gap"] = tsl_gap
+                break
+
+    if dry_run:
+        return {'status_code': 0, 'body': payload, 'order_id': 'DRY_RUN'}
+
+    _ensure_log_dir(log_path)
+    logger = logging.getLogger('gtt_multi')
+    if not logger.handlers:
+        fh = logging.FileHandler(log_path)
+        fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        logger.addHandler(fh)
+        logger.setLevel(logging.INFO)
+
+    url = BASE + '/order/gtt/place'
+    last_exc = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.post(url, json=payload, headers=_headers(access_token))
+            status = resp.status_code
+            body = resp.json() if resp.content else {}
+
+            logger.info('Multi-leg GTT attempt %d status=%s symbol_token=%s', attempt, status, instrument_token)
+
+            if status in (200, 201, 202):
+                order_id = body.get('order_id', 'UNKNOWN')
+                return {'status_code': status, 'body': body, 'order_id': order_id}
+
+            # Handle duplicate GTT - try modify instead
+            if status == 400 and 'duplicate' in str(body).lower():
+                logger.info('Duplicate GTT detected, attempting modify')
+                modify_resp = requests.post(BASE + '/order/gtt/modify', json=payload, headers=_headers(access_token))
+                if modify_resp.status_code in (200, 201, 202):
+                    modify_body = modify_resp.json() if modify_resp.content else {}
+                    order_id = modify_body.get('order_id', 'MODIFIED')
+                    return {'status_code': modify_resp.status_code, 'body': modify_body, 'order_id': order_id}
+                else:
+                    logger.warning('Modify also failed: %s', modify_resp.text)
+
+            # Transient errors
+            if status == 429 or status >= 500:
+                sleep_for = backoff * attempt
+                logger.warning('Transient status %s, sleeping %.1fs and retrying', status, sleep_for)
+                time.sleep(sleep_for)
+                continue
+
+            # Non-retriable
+            logger.error('Non-retriable status %s body=%s', status, body)
+            return {'status_code': status, 'body': body, 'order_id': None}
+
+        except Exception as e:
+            last_exc = e
+            logger.exception('Exception on attempt %d: %s', attempt, str(e))
+            time.sleep(backoff * attempt)
+            continue
+
+    # Exhausted retries
+    logger.error('Exhausted retries for multi-leg GTT; last_exc=%s', str(last_exc))
+    return {'status_code': 0, 'body': {'error': str(last_exc)}, 'order_id': None}

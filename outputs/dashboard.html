@@ -1,0 +1,324 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWING_BOT Daily Dashboard - 2025-12-21</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header .subtitle {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        .kpi-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .kpi-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .kpi-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        .section {
+            padding: 30px;
+            border-bottom: 1px solid #eee;
+        }
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .status-pass {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-fail {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .issues-list {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .issue-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SWING_BOT</h1>
+            <div class="subtitle">Daily Trading Dashboard - 2025-12-21</div>
+            <div style="margin-top: 20px; font-size: 1.2em;">
+                Generated at 2025-12-21 16:30:40
+            </div>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-value">19/25</div>
+                <div class="kpi-label">Audit Pass Rate</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value">2</div>
+                <div class="kpi-label">Data Freshness (days)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value">47</div>
+                <div class="kpi-label">Symbols Tracked</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value">500</div>
+                <div class="kpi-label">Coverage Days</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value">45.2s</div>
+                <div class="kpi-label">Runtime</div>
+            </div>
+            
+        </div>
+
+        <div class="section">
+            <h2>Top Positions</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Entry Price</th>
+                        <th>Stop Loss</th>
+                        <th>Target</th>
+                        <th>Confidence</th>
+                        <th>Audit Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td>HINDALCO</td>
+                        <td>₹827.76</td>
+                        <td>₹802.44</td>
+                        <td>₹878.38</td>
+                        <td>0.500</td>
+                        <td class="status-fail">FAIL</td>
+                    </tr>
+
+                    <tr>
+                        <td>DIVISLAB</td>
+                        <td>₹6408.34</td>
+                        <td>₹6216.66</td>
+                        <td>₹6791.70</td>
+                        <td>0.500</td>
+                        <td class="status-pass">PASS</td>
+                    </tr>
+
+                    <tr>
+                        <td>UPL</td>
+                        <td>₹747.67</td>
+                        <td>₹723.66</td>
+                        <td>₹795.69</td>
+                        <td>0.500</td>
+                        <td class="status-pass">PASS</td>
+                    </tr>
+
+                    <tr>
+                        <td>WIPRO</td>
+                        <td>₹256.77</td>
+                        <td>₹251.06</td>
+                        <td>₹268.17</td>
+                        <td>0.500</td>
+                        <td class="status-fail">FAIL</td>
+                    </tr>
+
+                    <tr>
+                        <td>INFY</td>
+                        <td>₹1587.52</td>
+                        <td>₹1547.40</td>
+                        <td>₹1667.75</td>
+                        <td>0.500</td>
+                        <td class="status-fail">FAIL</td>
+                    </tr>
+
+                    <tr>
+                        <td>TECHM</td>
+                        <td>₹1552.87</td>
+                        <td>₹1514.99</td>
+                        <td>₹1628.64</td>
+                        <td>0.500</td>
+                        <td class="status-fail">FAIL</td>
+                    </tr>
+
+                    <tr>
+                        <td>TATAMOTORS</td>
+                        <td>₹357.76</td>
+                        <td>₹348.16</td>
+                        <td>₹376.96</td>
+                        <td>0.500</td>
+                        <td class="status-pass">PASS</td>
+                    </tr>
+
+                    <tr>
+                        <td>ASIANPAINT</td>
+                        <td>₹2811.98</td>
+                        <td>₹2731.69</td>
+                        <td>₹2972.57</td>
+                        <td>0.500</td>
+                        <td class="status-pass">PASS</td>
+                    </tr>
+
+                    <tr>
+                        <td>INDUSINDBK</td>
+                        <td>₹841.03</td>
+                        <td>₹811.75</td>
+                        <td>₹899.58</td>
+                        <td>0.500</td>
+                        <td class="status-pass">PASS</td>
+                    </tr>
+
+                    <tr>
+                        <td>MARUTI</td>
+                        <td>₹16199.14</td>
+                        <td>₹15868.92</td>
+                        <td>₹16859.57</td>
+                        <td>0.500</td>
+                        <td class="status-pass">PASS</td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Audit Issues Summary</h2>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> ENTRY deviates 2.8% from canonical (852.00)<br>
+                    <strong>Count:</strong> 1<br>
+                    <strong>Suggested Fix:</strong> Use canonical ENTRY=852.00 from Close; Ensure all prices are tick-rounded to NSE EQ standard (₹0.05)
+                </div>
+            </div>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> nan<br>
+                    <strong>Count:</strong> 19<br>
+                    <strong>Suggested Fix:</strong> nan
+                </div>
+            </div>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> ENTRY deviates 2.9% from canonical (264.45)<br>
+                    <strong>Count:</strong> 1<br>
+                    <strong>Suggested Fix:</strong> Use canonical ENTRY=264.45 from Close; Ensure all prices are tick-rounded to NSE EQ standard (₹0.05)
+                </div>
+            </div>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> ENTRY deviates 3.1% from canonical (1638.70)<br>
+                    <strong>Count:</strong> 1<br>
+                    <strong>Suggested Fix:</strong> Use canonical ENTRY=1638.70 from Close; Ensure all prices are tick-rounded to NSE EQ standard (₹0.05)
+                </div>
+            </div>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> ENTRY deviates 3.7% from canonical (1612.50)<br>
+                    <strong>Count:</strong> 1<br>
+                    <strong>Suggested Fix:</strong> Use canonical ENTRY=1612.50 from Close; Ensure all prices are tick-rounded to NSE EQ standard (₹0.05)
+                </div>
+            </div>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> ENTRY deviates 2.6% from canonical (3282.00)<br>
+                    <strong>Count:</strong> 1<br>
+                    <strong>Suggested Fix:</strong> Use canonical ENTRY=3282.00 from Close; Ensure all prices are tick-rounded to NSE EQ standard (₹0.05)
+                </div>
+            </div>
+
+            <div class="issues-list">
+                <div class="issue-item">
+                    <strong>Issue:</strong> ENTRY deviates 2.5% from canonical (6103.00)<br>
+                    <strong>Count:</strong> 1<br>
+                    <strong>Suggested Fix:</strong> Use canonical ENTRY=6103.00 from Close; Ensure all prices are tick-rounded to NSE EQ standard (₹0.05)
+                </div>
+            </div>
+
+        </div>
+
+        <div class="footer">
+            <p>SWING_BOT Automated Trading System | Generated on 2025-12-21 16:30:40</p>
+        </div>
+    </div>
+</body>
+</html>

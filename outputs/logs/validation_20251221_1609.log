@@ -1,0 +1,4 @@
+2025-12-21 16:09:33,637 - INFO - Fetched data: nifty50_data.csv: earliest=2024-08-08, latest=2025-12-19, days=341, symbols=47, rows=16027
+2025-12-21 16:09:33,637 - ERROR - Fetch and validation failed: Stale data: latest_date=2025-12-19 is 2 days old (max_age_days=1, today_ist=2025-12-21)
+2025-12-21 16:10:13,169 - INFO - Fetched data: nifty50_data.csv: earliest=2024-08-08, latest=2025-12-19, days=341, symbols=47, rows=16027
+2025-12-21 16:10:13,170 - ERROR - Fetch and validation failed: Insufficient coverage: trading_days_count=341 (< required_days=500). earliest_date=2024-08-08, latest_date=2025-12-19

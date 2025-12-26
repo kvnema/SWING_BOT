@@ -6,7 +6,8 @@ from .signals import compute_signals
 
 
 def walk_forward_optimization(df: pd.DataFrame, strategy_name: str, flag_col: str, cfg: dict,
-                              cycles: int = 8, mode: str = 'rolling', is_window: int = 252, oos_window: int = 63) -> Dict:
+                              cycles: int = 8, mode: str = 'rolling', is_window: int = 252, oos_window: int = 63,
+                              confirm_rsi: bool = False, confirm_macd: bool = False, confirm_hist: bool = False) -> Dict:
     """
     Perform Walk-Forward Optimization for a strategy.
 
@@ -43,11 +44,11 @@ def walk_forward_optimization(df: pd.DataFrame, strategy_name: str, flag_col: st
         oos_df = compute_signals(oos_df)
 
         # Backtest IS
-        is_res = backtest_strategy(is_df, flag_col, cfg)
+        is_res = backtest_strategy(is_df, flag_col, cfg, confirm_rsi, confirm_macd, confirm_hist)
         is_results.append(is_res['kpi'])
 
         # Backtest OOS
-        oos_res = backtest_strategy(oos_df, flag_col, cfg)
+        oos_res = backtest_strategy(oos_df, flag_col, cfg, confirm_rsi, confirm_macd, confirm_hist)
         oos_results.append(oos_res['kpi'])
 
     # Aggregate OOS metrics

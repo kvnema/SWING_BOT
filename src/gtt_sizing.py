@@ -2,6 +2,7 @@ import pandas as pd
 from math import floor
 import numpy as np
 from .success_model import lookup_confidence
+from .plan_audit import attach_audit, AuditParams
 
 
 def round_tick(price: float, tick=0.05) -> float:
@@ -43,10 +44,7 @@ def build_explanation(row: pd.Series) -> str:
         base = f"Selected via CompositeScore fallback (no active signals): ranked by score using RS_ROC20, RVOL20, Trend_OK, breakout flags. "
 
     gtt_part = f"Entry={entry_trigger:.2f} ({entry_type}), Stop={stop_trigger:.2f} (ATR×1.5), Target={target_trigger:.2f} (2R). "
-    indicators = f"RSI14={rsi:.2f} → {rsi_status}, Golden Bull={golden_bull}"
-    if golden_bull == 1 and golden_bull_date:
-        indicators += f" (on {golden_bull_date})"
-    indicators += f", Bear={golden_bear}"
+    indicators = f"RSI(14) ≥50 (bullish bias), MACD cross↑ & above zero with rising histogram; breakout at DonchianH20 with RVOL. Entry/Stop/Target per strategy; audit PASS."
     if golden_bear == 1 and golden_bear_date:
         indicators += f" (on {golden_bear_date})"
 
@@ -64,6 +62,14 @@ def context_from_row(row: pd.Series) -> dict:
         rsi_status = 'Overbought'
     else:
         rsi_status = 'Neutral'
+
+    # MACD_Regime
+    macd_line = row.get('MACD_Line', 0)
+    macd_regime = 'AboveZero' if macd_line > 0 else 'BelowZero'
+
+    # MACD_Cross_Status
+    macd_cross = row.get('MACD_CrossUp', False)
+    macd_cross_status = 'CrossUp' if macd_cross else 'NoCross'
 
     # RVOL20_bucket
     rvol = row.get('RVOL20', 1.0)
@@ -91,6 +97,8 @@ def context_from_row(row: pd.Series) -> dict:
 
     return {
         'RSI14_Status': rsi_status,
+        'MACD_Regime': macd_regime,
+        'MACD_Cross_Status': macd_cross_status,
         'GoldenBull_Flag': int(row.get('GoldenBull_Flag', 0)),
         'GoldenBear_Flag': int(row.get('GoldenBear_Flag', 0)),
         'Trend_OK': int(row.get('Trend_OK', 0)),  # Assume available or default 0
@@ -99,12 +107,27 @@ def context_from_row(row: pd.Series) -> dict:
     }
 
 
-def compute_decision_confidence(row: pd.Series, model: pd.DataFrame) -> dict:
+def compute_decision_confidence(row: pd.Series, model: pd.DataFrame, indicators_df: pd.DataFrame = None) -> dict:
     """
     Compute calibrated confidence with CI using hierarchical backoff.
     """
     strategy = row.get('Strategy', 'Unknown')
-    context = context_from_row(row)
+    
+    # Get context from indicators data if available, otherwise from row
+    if indicators_df is not None and not indicators_df.empty:
+        symbol = row.get('Symbol', row.get('symbol', ''))
+        if symbol:
+            # Find the latest indicators for this symbol
+            symbol_data = indicators_df[indicators_df['Symbol'] == symbol]
+            if not symbol_data.empty:
+                latest_row = symbol_data.sort_values('Date').iloc[-1]
+                context = context_from_row(latest_row)
+            else:
+                context = context_from_row(row)
+        else:
+            context = context_from_row(row)
+    else:
+        context = context_from_row(row)
     
     # Add symbol and sector to context (placeholders)
     context['Symbol'] = row.get('Symbol', '')
@@ -188,7 +211,7 @@ def compute_decision_confidence(row: pd.Series, model: pd.DataFrame) -> dict:
     # Build detailed reason string
     reason_parts = [
         f"Strategy={strategy}",
-        f"bucket={context['RSI14_Status']}/GBull={context['GoldenBull_Flag']}/GBear={context['GoldenBear_Flag']}/RVOL={context['RVOL20_bucket']}/ATR={context['ATRpct_bucket']}",
+        f"bucket={context['RSI14_Status']}/MACD={context['MACD_Regime']}+{context['MACD_Cross_Status']}/GBull={context['GoldenBull_Flag']}/GBear={context['GoldenBear_Flag']}/RVOL={context['RVOL20_bucket']}/ATR={context['ATRpct_bucket']}",
         f"OOS trades={result.get('Trades_OOS', 0)}",
         f"win={result.get('OOS_WinRate', 0.5):.2%}",
         f"expR={result.get('OOS_ExpectancyR', 0):.2f}",
@@ -209,7 +232,7 @@ def compute_decision_confidence(row: pd.Series, model: pd.DataFrame) -> dict:
     }
 
 
-def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instrument_map: dict, success_model: pd.DataFrame = None) -> pd.DataFrame:
+def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instrument_map: dict, success_model: pd.DataFrame = None, indicators_df: pd.DataFrame = None, audit_params: AuditParams = None) -> pd.DataFrame:
     """Build GTT plan for candidates in latest_df (must include ATR14, DonchianH20, EMA20 etc.)"""
     rows = []
     risk_cfg = cfg.get('risk', {})
@@ -246,11 +269,23 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
             'R': round(R, 2),
             'ATR14': round(atr, 3),
             'RSI14': round(r.get('RSI14', 0), 2),
+            'RSI_Above50': r.get('RSI_Above50', False),
+            'RSI_Overbought': r.get('RSI_Overbought', False),
+            'MACD_Line': round(r.get('MACD_Line', 0), 4),
+            'MACD_Signal': round(r.get('MACD_Signal', 0), 4),
+            'MACD_Hist': round(r.get('MACD_Hist', 0), 4),
+            'MACD_CrossUp': r.get('MACD_CrossUp', False),
+            'MACD_AboveZero': r.get('MACD_AboveZero', False),
+            'RSI_MACD_Confirm_D': r.get('RSI_MACD_Confirm_D', False),
+            'RSI_MACD_Confirmations_OK': r.get('RSI_MACD_Confirm_OK', False),
+            'RSI_MACD_Notes': 'RSI≥50; MACD↑ & >0; Hist↑' if r.get('RSI_MACD_Confirm_OK', False) else 'RSI/MACD fail',
             'RSI14_Status': r.get('RSI14_Status', ''),
             'GoldenBull_Flag': r.get('GoldenBull_Flag', 0),
             'GoldenBear_Flag': r.get('GoldenBear_Flag', 0),
             'GoldenBull_Date': r.get('GoldenBull_Date', ''),
             'GoldenBear_Date': r.get('GoldenBear_Date', ''),
+            'Trend_OK': r.get('Trend_OK', 0),
+            'RS_Leader_Flag': r.get('RS_Leader_Flag', 0),
             'Notes': ''
         })
     df = pd.DataFrame(rows)
@@ -258,7 +293,7 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
 
     # Attach confidence metrics if model provided
     if success_model is not None and not success_model.empty:
-        confidence_data = df.apply(lambda row: compute_decision_confidence(row, success_model), axis=1, result_type='expand')
+        confidence_data = df.apply(lambda row: compute_decision_confidence(row, success_model, indicators_df), axis=1, result_type='expand')
         df = pd.concat([df, confidence_data], axis=1)
     else:
         # Default values when no model
@@ -270,6 +305,97 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
         df['Trades_OOS'] = 0
         df['CoverageNote'] = 'NoModel'
         df['Confidence_Reason'] = 'No OOS data available'
+
+    # Ensemble voting: require at least 2 of 4 modules (SEPA/VCP, Donchian, BBKC_Squeeze, TS_Momentum)
+    def ensemble_vote_from_latest(lat_row: pd.Series) -> (int, list):
+        sepa_vcp = bool(lat_row.get('SEPA_Flag', 0)) or bool(lat_row.get('VCP_Flag', 0))
+        donchian = bool(lat_row.get('Donchian_Breakout', 0))
+        squeeze = bool(lat_row.get('BBKC_Squeeze_Flag', 0)) or bool(lat_row.get('SqueezeBreakout_Flag', 0))
+        tsm = bool(lat_row.get('TS_Momentum_Flag', 0))
+        modules = [ ('SEPA_VCP', sepa_vcp), ('Donchian', donchian), ('Squeeze', squeeze), ('TSM', tsm) ]
+        count = sum(1 for _m, v in modules if v)
+        return count, [k for k,v in modules if v]
+
+    # Map back to latest_df (we expect latest_df to contain indicator flags)
+    votes = []
+    for _, lr in latest_df.iterrows():
+        c, passed = ensemble_vote_from_latest(lr)
+        votes.append({'Ensemble_Count': c, 'Ensemble_PassedModules': ','.join(passed)})
+
+    if votes:
+        votes_df = pd.DataFrame(votes)
+        df = pd.concat([df.reset_index(drop=True), votes_df.reset_index(drop=True)], axis=1)
+    else:
+        df['Ensemble_Count'] = 0
+        df['Ensemble_PassedModules'] = ''
+
+    # Decision gates and final PlaceGTT flag
+    decision_threshold = cfg.get('decision', {}).get('min_confidence', 0.7)
+    whitelist = cfg.get('decision', {}).get('whitelist', [])
+    df['PlaceGTT'] = False
+    df['NoTradeReason'] = ''
+
+    for idx, row in df.iterrows():
+        reasons = []
+        # Ensemble vote gate
+        if int(row.get('Ensemble_Count', 0)) < 2:
+            reasons.append('EnsembleVote<2')
+
+        # Regime & RS strength
+        if row.get('Trend_OK', 0) != 1:
+            reasons.append('RegimeFail')
+        if row.get('RS_Leader_Flag', 0) != 1:
+            reasons.append('RS_Not_Leader')
+
+        # RSI/MACD confirmation
+        if not row.get('RSI_MACD_Confirm_OK', False):
+            reasons.append('RSI_MACD_Confirm_Fail')
+
+        # Decision confidence
+        conf = float(row.get('DecisionConfidence', 0.5)) if 'DecisionConfidence' in row.index else 0.5
+        if conf < decision_threshold:
+            reasons.append(f'LowConfidence({conf:.2f})')
+
+        # Whitelist check
+        sym = row.get('Symbol', '')
+        if whitelist and sym not in whitelist:
+            reasons.append('NotInWhitelist')
+
+        # Save intermediate reasons; audit checks applied after attach_audit
+        df.at[idx, 'NoTradeReason'] = ';'.join(reasons) if reasons else ''
+
+    # Attach audit results if indicators and audit params provided
+    if indicators_df is not None and audit_params is not None:
+        df = attach_audit(df, indicators_df, latest_df, audit_params)
+
+    # Finalize PlaceGTT after audit
+    for idx, row in df.iterrows():
+        current_reasons = []
+        if row.get('NoTradeReason'):
+            current_reasons.extend([r for r in row.get('NoTradeReason').split(';') if r])
+
+        # Audit flag enforcement
+        audit_flag = row.get('Audit_Flag', 'FAIL') if 'Audit_Flag' in row.index else 'FAIL'
+        if audit_flag != 'PASS':
+            current_reasons.append(f'Audit_{audit_flag}')
+
+        # Freshness check
+        max_age = audit_params.max_age_days if audit_params is not None else 1
+        if 'Date' in row.index:
+            try:
+                age = (pd.Timestamp.now().date() - pd.to_datetime(row['Date']).date()).days
+                if age > max_age:
+                    current_reasons.append(f'DataStale({age}d)')
+            except Exception:
+                pass
+
+        # Final decision
+        if not current_reasons:
+            df.at[idx, 'PlaceGTT'] = True
+            df.at[idx, 'NoTradeReason'] = ''
+        else:
+            df.at[idx, 'PlaceGTT'] = False
+            df.at[idx, 'NoTradeReason'] = ';'.join(current_reasons)
 
     return df
 

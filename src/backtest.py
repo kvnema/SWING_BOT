@@ -10,7 +10,7 @@ def _compute_drawdown(equity_series: pd.Series) -> pd.Series:
     return dd
 
 
-def backtest_strategy(df: pd.DataFrame, flag_col: str, cfg: dict) -> Dict:
+def backtest_strategy(df: pd.DataFrame, flag_col: str, cfg: dict, confirm_rsi: bool = False, confirm_macd: bool = False, confirm_hist: bool = False) -> Dict:
     """Event-driven backtest (simplified) returning KPIs, trades and equity curve.
 
     Notes: This is a simplified engine for quick evaluation. It uses a time-stop of 20 bars
@@ -30,6 +30,15 @@ def backtest_strategy(df: pd.DataFrame, flag_col: str, cfg: dict) -> Dict:
         equity_curve.append({'Date': row['Date'], 'Equity': eq})
         if int(row.get(flag_col, 0)) != 1:
             continue
+        
+        # Apply RSI/MACD filters
+        if confirm_rsi and not (row.get('RSI_Above50', False) and not row.get('RSI_Overbought', False)):
+            continue
+        if confirm_macd and not (row.get('MACD_CrossUp', False) and row.get('MACD_AboveZero', False)):
+            continue
+        if confirm_hist and not row.get('MACD_Hist_Rising', False):
+            continue
+        
         entry_price = float(row['Close'])
         atr = float(row.get('ATR14', 0.0))
         stop_price = entry_price - stop_mult * atr

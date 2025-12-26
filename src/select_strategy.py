@@ -4,10 +4,10 @@ import pandas as pd
 from .backtest import backtest_strategy
 
 
-def select_best_strategy(df: pd.DataFrame, strategies: dict, cfg: dict, out_dir: str) -> dict:
+def select_best_strategy(df: pd.DataFrame, strategies: dict, cfg: dict, out_dir: str, confirm_rsi: bool = False, confirm_macd: bool = False, confirm_hist: bool = False) -> dict:
     results = {}
     for name, flag in strategies.items():
-        res = backtest_strategy(df, flag, cfg)
+        res = backtest_strategy(df, flag, cfg, confirm_rsi, confirm_macd, confirm_hist)
         results[name] = res['kpi']
         # persist basic outputs
         od = Path(out_dir) / name
