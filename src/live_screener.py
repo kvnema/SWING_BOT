@@ -13,90 +13,28 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-def run_live_screener():
-    print("Starting NIFTY 50 Stock Screener Generator...")
+# Import instrument lists from config
+from .config import INSTRUMENT_KEYS, NIFTY_50_STOCKS, NSE_ETFS, ALL_INSTRUMENTS
+
+def run_live_screener(include_etfs=True):
+    instruments_to_screen = ALL_INSTRUMENTS if include_etfs else NIFTY_50_STOCKS
+    print(f"Starting Stock Screener for {len(instruments_to_screen)} instruments (ETFs: {include_etfs})...")
 
     # Upstox API credentials
     API_KEY = os.getenv('UPSTOX_API_KEY', 'b10becd3-d69f-4d44-8ab8-470c0f54c390')
     API_SECRET = os.getenv('UPSTOX_API_SECRET', 'peqijfmcla')
     ACCESS_TOKEN = os.getenv('UPSTOX_ACCESS_TOKEN', 'eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI0V0FRUUIiLCJqdGkiOiI2OTQyOWI1MTgzMWQ0ZjA5NzIxZWJhMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzY1OTcyODE3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3NjYwMDg4MDB9.xAyY8gUzF9BvmmFxCvVYbXEOUImPJNEVSlIeg75ANvA')
 
-    # Instrument keys for Upstox (Nifty 50)
-    instrument_keys = {
-        'ADANIPORTS': 'NSE_EQ|INE742F01042',
-        'ADANIENT': 'NSE_EQ|INE423A01024',
-        'APOLLOHOSP': 'NSE_EQ|INE437A01024',
-        'ASIANPAINT': 'NSE_EQ|INE021A01026',
-        'AXISBANK': 'NSE_EQ|INE238A01034',
-        'BAJAJ-AUTO': 'NSE_EQ|INE917I01010',
-        'BAJFINANCE': 'NSE_EQ|INE296A01024',
-        'BAJAJFINSV': 'NSE_EQ|INE918I01026',
-        'BPCL': 'NSE_EQ|INE029A01023',
-        'BHARTIARTL': 'NSE_EQ|INE397D01024',
-        'BRITANNIA': 'NSE_EQ|INE216A01030',
-        'CIPLA': 'NSE_EQ|INE059A01026',
-        'COALINDIA': 'NSE_EQ|INE522F01014',
-        'DIVISLAB': 'NSE_EQ|INE361B01024',
-        'DRREDDY': 'NSE_EQ|INE089A01023',
-        'EICHERMOT': 'NSE_EQ|INE066A01021',
-        'GRASIM': 'NSE_EQ|INE047A01021',
-        'HCLTECH': 'NSE_EQ|INE860A01027',
-        'HDFCBANK': 'NSE_EQ|INE040A01034',
-        'HDFCLIFE': 'NSE_EQ|INE795G01014',
-        'HEROMOTOCO': 'NSE_EQ|INE158A01026',
-        'HINDALCO': 'NSE_EQ|INE038A01020',
-        'HINDUNILVR': 'NSE_EQ|INE030A01027',
-        'ICICIBANK': 'NSE_EQ|INE090A01021',
-        'INDUSINDBK': 'NSE_EQ|INE095A01012',
-        'INFY': 'NSE_EQ|INE009A01021',
-        'ITC': 'NSE_EQ|INE154A01025',
-        'JSWSTEEL': 'NSE_EQ|INE019A01038',
-        'KOTAKBANK': 'NSE_EQ|INE237A01028',
-        'LT': 'NSE_EQ|INE018A01030',
-        'M&M': 'NSE_EQ|INE101A01026',
-        'MARUTI': 'NSE_EQ|INE585B01010',
-        'NTPC': 'NSE_EQ|INE733E01010',
-        'NESTLEIND': 'NSE_EQ|INE239A01024',
-        'ONGC': 'NSE_EQ|INE213A01029',
-        'POWERGRID': 'NSE_EQ|INE752E01010',
-        'RELIANCE': 'NSE_EQ|INE002A01018',
-        'SBILIFE': 'NSE_EQ|INE123W01016',
-        'SHREECEM': 'NSE_EQ|INE070A01015',
-        'SBIN': 'NSE_EQ|INE062A01020',
-        'SUNPHARMA': 'NSE_EQ|INE044A01036',
-        'TCS': 'NSE_EQ|INE467B01029',
-        'TATACONSUM': 'NSE_EQ|INE192A01025',
-        'TATAMOTORS': 'NSE_EQ|INE155A01022',
-        'TATASTEEL': 'NSE_EQ|INE081A01020',
-        'TECHM': 'NSE_EQ|INE669C01036',
-        'TITAN': 'NSE_EQ|INE280A01028',
-        'ULTRACEMCO': 'NSE_EQ|INE481G01011',
-        'UPL': 'NSE_EQ|INE628A01036',
-        'WIPRO': 'NSE_EQ|INE075A01022',
-        'NIFTY': 'NSE_INDEX|Nifty 50'
-    }
-
-    # NIFTY 50 stocks list
-    nifty_50_stocks = [
-        'ADANIPORTS.NS', 'ADANIENT.NS', 'APOLLOHOSP.NS', 'ASIANPAINT.NS', 'AXISBANK.NS',
-        'BAJAJ-AUTO.NS', 'BAJFINANCE.NS', 'BAJAJFINSV.NS', 'BPCL.NS', 'BHARTIARTL.NS',
-        'BRITANNIA.NS', 'CIPLA.NS', 'COALINDIA.NS', 'DIVISLAB.NS', 'DRREDDY.NS',
-        'EICHERMOT.NS', 'GRASIM.NS', 'HCLTECH.NS', 'HDFCBANK.NS', 'HDFCLIFE.NS',
-        'HEROMOTOCO.NS', 'HINDALCO.NS', 'HINDUNILVR.NS', 'ICICIBANK.NS', 'INDUSINDBK.NS',
-        'INFY.NS', 'ITC.NS', 'JSWSTEEL.NS', 'KOTAKBANK.NS', 'LT.NS',
-        'M&M.NS', 'MARUTI.NS', 'NTPC.NS', 'NESTLEIND.NS', 'ONGC.NS',
-        'POWERGRID.NS', 'RELIANCE.NS', 'SBILIFE.NS', 'SHREECEM.NS', 'SBIN.NS',
-        'SUNPHARMA.NS', 'TCS.NS', 'TATACONSUM.NS', 'TATAMOTORS.NS', 'TATASTEEL.NS',
-        'TECHM.NS', 'TITAN.NS', 'ULTRACEMCO.NS', 'UPL.NS', 'WIPRO.NS', 'NIFTY.NS'
-    ]
+    # Use centralized instrument keys
+    instrument_keys = INSTRUMENT_KEYS
 
     # Create workbook
     wb = Workbook()
     wb.remove(wb.active)
 
-    print(f"Fetching live data for {len(nifty_50_stocks)} stocks...")
+    print(f"Fetching live data for {len(instruments_to_screen)} instruments...")
 
-    # Fetch data for all stocks
+    # Fetch data for all instruments
     all_data = []
     failed_stocks = []
 
@@ -105,9 +43,9 @@ def run_live_screener():
         'Accept': 'application/json'
     }
 
-    for i, stock in enumerate(nifty_50_stocks):
+    for i, stock in enumerate(instruments_to_screen):
         try:
-            print(f"  [{i+1}/{len(nifty_50_stocks)}] Fetching {stock}...", end=" ", flush=True)
+            print(f"  [{i+1}/{len(instruments_to_screen)}] Fetching {stock}...", end=" ", flush=True)
             
             # Fetch 2 years of historical data
             end_date = datetime.now()
@@ -132,21 +70,21 @@ def run_live_screener():
                     df = df[['Stock', 'Date', 'open', 'high', 'low', 'close', 'volume']]
                     df.columns = ['Stock', 'Date', 'Open', 'High', 'Low', 'Close', 'Volume']
                     all_data.append(df)
-                    print(f"  [{i+1}/{len(nifty_50_stocks)}] Fetching {stock}... OK")
+                    print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... OK")
                 else:
-                    print(f"  [{i+1}/{len(nifty_50_stocks)}] Fetching {stock}... FAILED (No data)")
+                    print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... FAILED (No data)")
                     failed_stocks.append(stock)
             else:
-                print(f"  [{i+1}/{len(nifty_50_stocks)}] Fetching {stock}... FAILED (API Error: {response.status_code})")
+                print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... FAILED (API Error: {response.status_code})")
                 failed_stocks.append(stock)
                 
         except Exception as e:
-            print(f"  [{i+1}/{len(nifty_50_stocks)}] Fetching {stock}... FAILED (Error: {str(e)[:30]})")
+            print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... FAILED (Error: {str(e)[:30]})")
             failed_stocks.append(stock)
         
         time.sleep(0.2)  # Rate limiting
 
-    print(f"\nSuccessfully fetched {len(all_data)} stocks out of {len(nifty_50_stocks)}")
+    print(f"\nSuccessfully fetched {len(all_data)} stocks out of {len(NIFTY_50_STOCKS)}")
 
     if len(all_data) > 0:
         # Combine all data

@@ -1,0 +1,81 @@
+2025-12-21 13:58:36 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:38 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:38 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:38 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 13:58:38 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:38 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 13:58:38 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:38 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 13:58:38 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 13:58:38 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:38 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials 4fb4d7f45d1cf-64b91494c03sm6574920a12.18 - gsmtp')
+2025-12-21 13:58:48 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:48 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:48 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 13:58:48 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:48 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 13:58:48 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:48 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 13:58:48 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 13:58:48 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:58:48 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials 4fb4d7f45d1cf-64b90f53c16sm6666015a12.1 - gsmtp')
+2025-12-21 13:59:09 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:59:09 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:59:09 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 13:59:09 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:59:09 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 13:59:09 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:59:09 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 13:59:09 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 13:59:09 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 13:59:09 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials a640c23a62f3a-b8037f0b7bcsm725928366b.49 - gsmtp')
+2025-12-21 14:43:31 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:31 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:31 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:43:31 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:31 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 14:43:31 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:31 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 14:43:31 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:43:31 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:31 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials 4fb4d7f45d1cf-64b9105a9c4sm6880942a12.12 - gsmtp')
+2025-12-21 14:43:58 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:58 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:58 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:43:58 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:58 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 14:43:58 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:58 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 14:43:58 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:43:58 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:43:58 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials a640c23a62f3a-b8037a60500sm711624966b.13 - gsmtp')
+2025-12-21 14:44:24 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:24 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:24 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:44:24 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:24 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 14:44:24 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:24 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 14:44:24 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:44:24 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:24 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials a640c23a62f3a-b8037de1421sm730008466b.41 - gsmtp')
+2025-12-21 14:44:36 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:36 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:36 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:44:36 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:36 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 14:44:36 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:36 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 14:44:36 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:44:36 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:36 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials a640c23a62f3a-b8037ddffc7sm728047666b.43 - gsmtp')
+2025-12-21 14:44:44 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:44 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:44 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:44:44 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:44 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: Connection failed
+2025-12-21 14:44:44 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:44 - src.notifier_email - WARNING - _send_smtp_email:155 - Attachment not found: /nonexistent/file.txt
+2025-12-21 14:44:44 - src.notifier_email - INFO - _send_smtp_email:165 - SMTP email sent successfully to 2 recipients
+2025-12-21 14:44:44 - src.notifier_email - INFO - _setup_smtp:62 - SMTP email configuration loaded
+2025-12-21 14:44:44 - src.notifier_email - ERROR - _send_smtp_email:169 - SMTP email failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials 4fb4d7f45d1cf-64b91599721sm6537294a12.26 - gsmtp')

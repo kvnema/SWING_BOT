@@ -1,0 +1,77 @@
+{
+  "selected": "Squeeze",
+  "results": {
+    "SEPA": {
+      "Win_Rate_%": 0.0,
+      "AvgR": 0.0,
+      "ExpectancyR": 0.0,
+      "SQN": 0.0,
+      "MaxDD": 0.0,
+      "Sharpe": 0.0,
+      "Sortino": 0.0,
+      "CAGR": 0.0,
+      "TotalReturn": 0.0,
+      "Total_Trades": 0
+    },
+    "VCP": {
+      "Win_Rate_%": 0.0,
+      "AvgR": 0.0,
+      "ExpectancyR": 0.0,
+      "SQN": 0.0,
+      "MaxDD": 0.0,
+      "Sharpe": 0.0,
+      "Sortino": 0.0,
+      "CAGR": 0.0,
+      "TotalReturn": 0.0,
+      "Total_Trades": 0
+    },
+    "Donchian": {
+      "Win_Rate_%": 0.0,
+      "AvgR": 0.0,
+      "ExpectancyR": 0.0,
+      "SQN": 0.0,
+      "MaxDD": 0.0,
+      "Sharpe": 0.0,
+      "Sortino": 0.0,
+      "CAGR": 0.0,
+      "TotalReturn": 0.0,
+      "Total_Trades": 0
+    },
+    "MR": {
+      "Win_Rate_%": 35.71,
+      "AvgR": -0.7735,
+      "ExpectancyR": -0.7735,
+      "SQN": -1.1775,
+      "MaxDD": -0.1305,
+      "Sharpe": -0.1844,
+      "Sortino": -0.0076,
+      "CAGR": -0.1241,
+      "TotalReturn": -0.1013,
+      "Total_Trades": 14
+    },
+    "Squeeze": {
+      "Win_Rate_%": 45.83,
+      "AvgR": 0.1755,
+      "ExpectancyR": 0.1755,
+      "SQN": 0.6543,
+      "MaxDD": -0.0326,
+      "Sharpe": 0.1118,
+      "Sortino": 0.0106,
+      "CAGR": 0.0514,
+      "TotalReturn": 0.0412,
+      "Total_Trades": 24
+    },
+    "AVWAP": {
+      "Win_Rate_%": 49.32,
+      "AvgR": -13271828.9483,
+      "ExpectancyR": -13271828.9483,
+      "SQN": -0.178,
+      "MaxDD": -406500.6621,
+      "Sharpe": -0.1625,
+      "Sortino": -0.0677,
+      "CAGR": NaN,
+      "TotalReturn": -460146.5076,
+      "Total_Trades": 3469
+    }
+  }
+}

@@ -1,0 +1,113 @@
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_failure:156 - Teams failure notification sent successfully
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:29:35 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:29:35 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:29:35 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:29:35 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_success:103 - Teams disabled, sending email success notification
+2025-12-21 14:29:35 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:29:36 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 404
+2025-12-21 14:29:36 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 404
+2025-12-21 14:29:36 - src.notifications_router - WARNING - validate:32 - Teams enabled but TEAMS_WEBHOOK_URL not set
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:85 - Teams success notification sent successfully
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:31 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:30:31 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:31 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:30:31 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_failure:156 - Teams failure notification sent successfully
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:31 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:30:31 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:31 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:30:31 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:103 - Teams disabled, sending email success notification
+2025-12-21 14:30:31 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:31 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 404
+2025-12-21 14:30:31 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 404
+2025-12-21 14:30:31 - src.notifications_router - WARNING - validate:32 - Teams enabled but TEAMS_WEBHOOK_URL not set
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:85 - Teams success notification sent successfully
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:36 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:30:36 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:36 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:30:36 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:103 - Teams disabled, sending email success notification
+2025-12-21 14:30:36 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:37 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 500
+2025-12-21 14:30:37 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 500
+2025-12-21 14:30:37 - src.notifications_router - WARNING - validate:32 - Teams enabled but TEAMS_WEBHOOK_URL not set
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:85 - Teams success notification sent successfully
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:57 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:30:57 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:57 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:30:57 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_failure:156 - Teams failure notification sent successfully
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:57 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:30:57 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:57 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:30:57 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:103 - Teams disabled, sending email success notification
+2025-12-21 14:30:57 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:30:58 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 500
+2025-12-21 14:30:58 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 500
+2025-12-21 14:30:58 - src.notifications_router - INFO - notify_eod_failure:174 - Teams disabled, sending email failure notification
+2025-12-21 14:30:58 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:30:59 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 500
+2025-12-21 14:30:59 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 500
+2025-12-21 14:30:59 - src.notifications_router - WARNING - validate:32 - Teams enabled but TEAMS_WEBHOOK_URL not set
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:85 - Teams success notification sent successfully
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:44:44 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:44:44 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:44:44 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 400
+2025-12-21 14:44:44 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 400
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:96 - Attempting email fallback for success notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:156 - Teams failure notification sent successfully
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:44:44 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:44:44 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:44:44 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 400
+2025-12-21 14:44:44 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 400
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:167 - Attempting email fallback for failure notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:103 - Teams disabled, sending email success notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_success:69 - Attempting Teams success notification
+2025-12-21 14:44:44 - src.notifications_router - WARNING - notify_eod_success:88 - Teams notification failed: 404
+2025-12-21 14:44:44 - src.notifications_router - ERROR - notify_eod_success:92 - Teams success notification failed: Teams API returned 404
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:174 - Teams disabled, sending email failure notification
+2025-12-21 14:44:44 - src.notifications_router - INFO - notify_eod_failure:141 - Attempting Teams failure notification
+2025-12-21 14:44:45 - src.notifications_router - WARNING - notify_eod_failure:159 - Teams notification failed: 500
+2025-12-21 14:44:45 - src.notifications_router - ERROR - notify_eod_failure:163 - Teams failure notification failed: Teams API returned 500
+2025-12-21 14:44:45 - src.notifications_router - WARNING - validate:32 - Teams enabled but TEAMS_WEBHOOK_URL not set

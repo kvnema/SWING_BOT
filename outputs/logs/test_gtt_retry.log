@@ -1,0 +1,27 @@
+2025-12-21 08:53:34,797 INFO Attempt 1 status=429 symbol=X
+2025-12-21 08:53:34,797 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-21 08:53:34,807 INFO Attempt 2 status=200 symbol=X
+2025-12-22 22:37:19,299 INFO Attempt 1 status=429 symbol=X
+2025-12-22 22:37:19,299 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 22:37:19,310 INFO Attempt 2 status=200 symbol=X
+2025-12-22 22:39:55,940 INFO Attempt 1 status=429 symbol=X
+2025-12-22 22:39:55,940 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 22:39:55,951 INFO Attempt 2 status=200 symbol=X
+2025-12-22 22:42:21,149 INFO Attempt 1 status=429 symbol=X
+2025-12-22 22:42:21,150 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 22:42:21,161 INFO Attempt 2 status=200 symbol=X
+2025-12-22 22:46:20,265 INFO Attempt 1 status=429 symbol=X
+2025-12-22 22:46:20,265 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 22:46:20,276 INFO Attempt 2 status=200 symbol=X
+2025-12-22 22:48:05,381 INFO Attempt 1 status=429 symbol=X
+2025-12-22 22:48:05,381 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 22:48:05,392 INFO Attempt 2 status=200 symbol=X
+2025-12-22 22:52:24,870 INFO Attempt 1 status=429 symbol=X
+2025-12-22 22:52:24,870 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 22:52:24,880 INFO Attempt 2 status=200 symbol=X
+2025-12-22 23:09:48,468 INFO Attempt 1 status=429 symbol=X
+2025-12-22 23:09:48,468 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 23:09:48,478 INFO Attempt 2 status=200 symbol=X
+2025-12-22 23:32:38,279 INFO Attempt 1 status=429 symbol=X
+2025-12-22 23:32:38,279 WARNING Transient status 429, sleeping 0.0s and retrying
+2025-12-22 23:32:38,290 INFO Attempt 2 status=200 symbol=X

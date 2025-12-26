@@ -18,7 +18,7 @@ def higher_lows(df: pd.DataFrame, lookback: int = 5) -> pd.Series:
 
 def rsi_status(rsi: pd.Series) -> pd.Series:
     """Return RSI status bucket."""
-    return pd.cut(rsi, bins=[-np.inf, 30, 70, np.inf], labels=["Oversold (≤30)", "Neutral (30–70)", "Overbought (≥70)"], right=True)
+    return pd.cut(rsi, bins=[-np.inf, 30, 70, np.inf], labels=["Oversold", "Neutral", "Overbought"], right=True)
 
 
 def minervini_trend_template(df: pd.DataFrame) -> pd.Series:
@@ -41,9 +41,13 @@ def minervini_trend_template(df: pd.DataFrame) -> pd.Series:
 
 def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
     """Compute strategy flags per spec. Assumes df has required columns and sorted by Date."""
+    from .indicators import compute_all_indicators  # Import here to avoid circular import
     d = df.copy()
     # ensure datetime
     d['Date'] = pd.to_datetime(d['Date'])
+
+    # Compute all indicators if not present
+    d = compute_all_indicators(d)
 
     # Trend_OK
     d['Trend_OK'] = ((d['Close'] > d['EMA20']) & (d['EMA20'] > d['EMA50']) & (d['EMA50'] > d['EMA200'])).astype(int)
@@ -110,6 +114,18 @@ def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
     # TS_Momentum: 12-month lookback, monthly rebalance
     d['TS_Momentum'] = (d['Close'] / d['Close'].shift(252) - 1).fillna(0)  # approx 252 trading days
     d['TS_Momentum_Flag'] = (d['TS_Momentum'] > 0).astype(int)  # simple positive momentum
+
+    # RSI/MACD confirmation pack (per TF)
+    d['RSIConfirm_D'] = d['RSI_Above50'] & ~d['RSI_Overbought']
+    d['MACDConfirm_D'] = d['MACD_CrossUp'] & d['MACD_AboveZero']
+    d['MomentumConfirm_D'] = d['MACD_Hist_Rising']
+    # For H4, relax to: RSI_Above50_H4 OR MACD_CrossUp_H4
+    d['RSIConfirm_H4'] = d.get('RSI_Above50_H4', d['RSI_Above50'])  # fallback to D if H4 not available
+    d['MACDConfirm_H4'] = d.get('MACD_CrossUp_H4', d['MACD_CrossUp'])  # fallback
+    d['RSI_MACD_Confirm_H4'] = d['RSIConfirm_H4'] | d['MACDConfirm_H4']
+    # Overall confirmation: D strict + H4 relaxed
+    d['RSI_MACD_Confirm_D'] = d['RSIConfirm_D'] & d['MACDConfirm_D'] & d['MomentumConfirm_D']
+    d['RSI_MACD_Confirm_OK'] = d['RSI_MACD_Confirm_D'] & d['RSI_MACD_Confirm_H4']
 
     # Regime gate: zero out long flags when IndexUpRegime==0
     long_flags = ['SEPA_Flag', 'VCP_Flag', 'Donchian_Breakout', 'MR_Flag', 'BBKC_Squeeze_Flag', 'SqueezeBreakout_Flag', 'AVWAP_Reclaim_Flag', 'TS_Momentum_Flag']

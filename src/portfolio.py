@@ -1,7 +1,295 @@
+"""
+Portfolio Construction and Risk Management
+Ensemble weighting, deflated Sharpe selection, and risk constraints
+"""
+
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
+from scipy import stats
 from scipy.optimize import minimize
+
+
+class PortfolioConstructor:
+    """
+    Portfolio construction with ensemble weighting and risk management
+    """
+
+    def __init__(self, max_weight: float = 0.05, max_sector_weight: float = 0.20,
+                 min_sharpe: float = 0.5, max_correlation: float = 0.7):
+        """
+        Initialize portfolio constructor
+
+        Args:
+            max_weight: Maximum weight per position
+            max_sector_weight: Maximum weight per sector
+            min_sharpe: Minimum Sharpe ratio for inclusion
+            max_correlation: Maximum correlation between positions
+        """
+        self.max_weight = max_weight
+        self.max_sector_weight = max_sector_weight
+        self.min_sharpe = min_sharpe
+        self.max_correlation = max_correlation
+
+    def compute_strategy_returns(self, signals_df: pd.DataFrame,
+                                price_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute returns for each strategy signal
+
+        Args:
+            signals_df: DataFrame with strategy signals
+            price_df: DataFrame with price data
+
+        Returns:
+            DataFrame with strategy returns
+        """
+        returns_df = pd.DataFrame(index=signals_df.index)
+
+        # Strategy columns (assuming they end with '_Flag' or '_Signal')
+        strategy_cols = [col for col in signals_df.columns
+                        if col.endswith('_Flag') or col.endswith('_Signal')]
+
+        for strategy in strategy_cols:
+            # Forward returns (next day)
+            returns_df[f'{strategy}_return'] = (
+                price_df['Close'].shift(-1) / price_df['Close'] - 1
+            ).where(signals_df[strategy] == 1)
+
+        return returns_df
+
+    def compute_deflated_sharpe(self, returns_df: pd.DataFrame,
+                               benchmark_returns: pd.Series,
+                               min_periods: int = 60) -> pd.Series:
+        """
+        Compute deflated Sharpe ratios for strategies
+
+        Args:
+            returns_df: Strategy returns DataFrame
+            benchmark_returns: Benchmark returns series
+            min_periods: Minimum periods for calculation
+
+        Returns:
+            Series with deflated Sharpe ratios
+        """
+        deflated_sharpes = {}
+
+        for col in returns_df.columns:
+            if col.endswith('_return'):
+                strategy_returns = returns_df[col].dropna()
+
+                if len(strategy_returns) < min_periods:
+                    deflated_sharpes[col.replace('_return', '_sharpe')] = 0
+                    continue
+
+                # Basic Sharpe
+                mean_ret = strategy_returns.mean()
+                std_ret = strategy_returns.std()
+                sharpe = mean_ret / std_ret if std_ret > 0 else 0
+
+                # Deflate by benchmark Sharpe
+                bench_sharpe = benchmark_returns.mean() / benchmark_returns.std()
+                deflated_sharpe = sharpe - bench_sharpe
+
+                deflated_sharpes[col.replace('_return', '_sharpe')] = deflated_sharpe
+
+        return pd.Series(deflated_sharpes)
+
+    def compute_correlation_matrix(self, returns_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute correlation matrix of strategy returns
+
+        Args:
+            returns_df: Strategy returns DataFrame
+
+        Returns:
+            Correlation matrix
+        """
+        return returns_df.corr()
+
+    def select_strategies_by_sharpe(self, sharpe_series: pd.Series,
+                                   min_sharpe: Optional[float] = None) -> List[str]:
+        """
+        Select strategies based on deflated Sharpe ratio
+
+        Args:
+            sharpe_series: Series with Sharpe ratios
+            min_sharpe: Minimum Sharpe threshold
+
+        Returns:
+            List of selected strategy names
+        """
+        threshold = min_sharpe or self.min_sharpe
+        selected = sharpe_series[sharpe_series >= threshold].index.tolist()
+        return [s.replace('_sharpe', '') for s in selected]
+
+    def compute_ensemble_weights(self, signals_df: pd.DataFrame,
+                                returns_df: pd.DataFrame,
+                                selected_strategies: List[str]) -> pd.Series:
+        """
+        Compute ensemble weights using deflated Sharpe and correlation
+
+        Args:
+            signals_df: Strategy signals
+            returns_df: Strategy returns
+            selected_strategies: List of selected strategies
+
+        Returns:
+            Series with strategy weights
+        """
+        if not selected_strategies:
+            return pd.Series()
+
+        weights = {}
+
+        # Base weight from Sharpe ratio
+        sharpe_cols = [f'{s}_sharpe' for s in selected_strategies]
+        sharpe_weights = returns_df[sharpe_cols].mean() / returns_df[sharpe_cols].mean().sum()
+
+        # Adjust for correlation (diversification)
+        corr_matrix = self.compute_correlation_matrix(
+            returns_df[[f'{s}_return' for s in selected_strategies]]
+        )
+
+        # Reduce weight for highly correlated strategies
+        for strategy in selected_strategies:
+            strategy_corr = corr_matrix.loc[f'{strategy}_return'].mean()
+            correlation_penalty = max(0, (strategy_corr - 0.3) / 0.4)  # Penalty above 0.3 correlation
+
+            weights[strategy] = sharpe_weights[f'{strategy}_sharpe'] * (1 - correlation_penalty * 0.5)
+
+        # Normalize weights
+        total_weight = sum(weights.values())
+        if total_weight > 0:
+            weights = {k: v/total_weight for k, v in weights.items()}
+
+        return pd.Series(weights)
+
+    def apply_risk_constraints(self, weights: pd.Series,
+                              signals_df: pd.DataFrame,
+                              sector_df: Optional[pd.DataFrame] = None) -> pd.Series:
+        """
+        Apply risk constraints to portfolio weights
+
+        Args:
+            weights: Initial strategy weights
+            signals_df: Signals data with position info
+            sector_df: Sector classification data
+
+        Returns:
+            Constrained weights
+        """
+        constrained_weights = weights.copy()
+
+        # Maximum weight constraint
+        constrained_weights = constrained_weights.clip(upper=self.max_weight)
+
+        # Sector constraints (if sector data available)
+        if sector_df is not None and not sector_df.empty:
+            # Group by sector and apply sector limits
+            sector_weights = {}
+            for sector in sector_df['sector'].unique():
+                sector_positions = sector_df[sector_df['sector'] == sector].index
+                sector_weight = constrained_weights[sector_positions].sum()
+
+                if sector_weight > self.max_sector_weight:
+                    # Scale down sector positions
+                    scale_factor = self.max_sector_weight / sector_weight
+                    constrained_weights[sector_positions] *= scale_factor
+
+        # Re-normalize
+        total_weight = constrained_weights.sum()
+        if total_weight > 0:
+            constrained_weights = constrained_weights / total_weight
+
+        return constrained_weights
+
+    def construct_portfolio(self, signals_df: pd.DataFrame,
+                           price_df: pd.DataFrame,
+                           benchmark_returns: pd.Series,
+                           sector_df: Optional[pd.DataFrame] = None) -> Dict:
+        """
+        Construct complete portfolio with all constraints
+
+        Args:
+            signals_df: Strategy signals
+            price_df: Price data
+            benchmark_returns: Benchmark returns
+            sector_df: Sector data
+
+        Returns:
+            Dict with portfolio construction results
+        """
+        # Compute strategy returns
+        returns_df = self.compute_strategy_returns(signals_df, price_df)
+
+        # Compute deflated Sharpe ratios
+        sharpe_series = self.compute_deflated_sharpe(returns_df, benchmark_returns)
+
+        # Select strategies
+        selected_strategies = self.select_strategies_by_sharpe(sharpe_series)
+
+        if not selected_strategies:
+            return {
+                'weights': pd.Series(),
+                'selected_strategies': [],
+                'sharpe_ratios': sharpe_series,
+                'correlation_matrix': pd.DataFrame(),
+                'portfolio_return': 0,
+                'portfolio_volatility': 0
+            }
+
+        # Compute ensemble weights
+        weights = self.compute_ensemble_weights(signals_df, returns_df, selected_strategies)
+
+        # Apply risk constraints
+        constrained_weights = self.apply_risk_constraints(weights, signals_df, sector_df)
+
+        # Portfolio statistics
+        portfolio_return = (constrained_weights * returns_df[[f'{s}_return' for s in selected_strategies]].mean()).sum()
+        portfolio_vol = np.sqrt(
+            constrained_weights.T @ returns_df[[f'{s}_return' for s in selected_strategies]].cov() @ constrained_weights
+        )
+
+        return {
+            'weights': constrained_weights,
+            'selected_strategies': selected_strategies,
+            'sharpe_ratios': sharpe_series,
+            'correlation_matrix': self.compute_correlation_matrix(returns_df),
+            'portfolio_return': portfolio_return,
+            'portfolio_volatility': portfolio_vol,
+            'sharpe_ratio': portfolio_return / portfolio_vol if portfolio_vol > 0 else 0
+        }
+
+
+def compute_portfolio_metrics(portfolio_result: Dict, risk_free_rate: float = 0.02) -> Dict:
+    """
+    Compute comprehensive portfolio metrics
+
+    Args:
+        portfolio_result: Portfolio construction result
+        risk_free_rate: Risk-free rate for Sharpe calculation
+
+    Returns:
+        Dict with portfolio metrics
+    """
+    weights = portfolio_result.get('weights', pd.Series())
+    portfolio_return = portfolio_result.get('portfolio_return', 0)
+    portfolio_vol = portfolio_result.get('portfolio_volatility', 0)
+
+    if weights.empty:
+        return {'error': 'No portfolio positions'}
+
+    metrics = {
+        'expected_return': portfolio_return,
+        'volatility': portfolio_vol,
+        'sharpe_ratio': (portfolio_return - risk_free_rate) / portfolio_vol if portfolio_vol > 0 else 0,
+        'max_weight': weights.max(),
+        'min_weight': weights.min(),
+        'num_positions': len(weights),
+        'concentration_ratio': weights.max() / weights.sum() if weights.sum() > 0 else 0
+    }
+
+    return metrics
 
 
 def risk_parity_allocation(cov: pd.DataFrame, target_risk: float = 0.01) -> pd.Series:

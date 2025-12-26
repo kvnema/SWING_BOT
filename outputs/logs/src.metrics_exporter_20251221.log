@@ -1,0 +1,97 @@
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'invalid' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - start_server:188 - Server only available in Prometheus mode
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - start_server:188 - Server only available in Prometheus mode
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'prometheus' or missing dependencies
+2025-12-21 14:43:26 - src.metrics_exporter - WARNING - start_server:188 - Server only available in Prometheus mode
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'invalid' or missing dependencies
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9109
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9109
+2025-12-21 14:43:54 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9110
+2025-12-21 14:43:58 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:43:58 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'invalid' or missing dependencies
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:20 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9110
+2025-12-21 14:44:24 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:44:24 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'invalid' or missing dependencies
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:33 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9110
+2025-12-21 14:44:36 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:44:36 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - WARNING - __init__:60 - Unsupported mode 'invalid' or missing dependencies
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:44:40 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9110
+2025-12-21 14:44:44 - src.metrics_exporter - INFO - stop_server:228 - Metrics server stopped
+2025-12-21 14:44:44 - src.metrics_exporter - INFO - _setup_otlp:183 - OpenTelemetry OTLP metrics initialized
+2025-12-21 14:51:13 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:51:13 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 14:51:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 14:51:33 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 16:12:46 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 16:12:46 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 16:13:33 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 16:13:33 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 16:14:24 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 16:14:24 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 16:15:18 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 16:15:18 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 16:16:11 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 16:16:11 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108
+2025-12-21 16:16:59 - src.metrics_exporter - INFO - _setup_prometheus:120 - Prometheus metrics initialized
+2025-12-21 16:16:59 - src.metrics_exporter - INFO - run_server:215 - Prometheus metrics server started on port 9108

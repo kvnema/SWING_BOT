@@ -1,0 +1,21 @@
+SWING_BOT LTP Reconciliation Report
+==================================================
+
+Summary:
+- Total positions: 25
+- Rows adjusted: 22
+- Rows passing: 22
+- Rows failing: 3
+- Average LTP delta: 1.58%
+
+Failures by issue:
+Issues
+Quote fetch failed    3
+
+Top adjustments:
+   Symbol  ltp_delta_pct                                                  Issues
+    WIPRO       0.048158   Adjusted entry from 258.13 to 271.20 (4.82% from LTP)
+ HINDALCO       0.043613   Adjusted entry from 831.77 to 869.70 (4.36% from LTP)
+      UPL       0.039056   Adjusted entry from 750.93 to 781.45 (3.91% from LTP)
+COALINDIA       0.031632   Adjusted entry from 383.28 to 395.80 (3.16% from LTP)
+EICHERMOT       0.023355 Adjusted entry from 7137.81 to 7308.50 (2.34% from LTP)

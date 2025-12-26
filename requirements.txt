@@ -36,3 +36,11 @@ pytest-cov>=4.0.0
 # Optional: Jupyter for analysis
 jupyter>=1.0.0
 ipykernel>=6.0.0
+
+# Monitoring and metrics
+prometheus-client>=0.17.0
+opentelemetry-distro>=0.40b0
+opentelemetry-exporter-otlp>=1.20.0
+
+# Email notifications
+smtplib3>=0.1.0  # For SMTP email fallback
