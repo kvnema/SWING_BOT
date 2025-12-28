@@ -242,3 +242,42 @@ def post_live_results_summary(plan_df: pd.DataFrame, placed_orders: list) -> boo
     except requests.exceptions.RequestException as e:
         print(f"❌ Failed to post live results to Teams: {str(e)}")
         return False
+
+
+def post_teams_message(webhook_url: str, message: str, title: str = "SWING_BOT Notification") -> bool:
+    """
+    Post a simple message to Microsoft Teams.
+
+    Args:
+        webhook_url: Teams webhook URL
+        message: Message content (can include markdown)
+        title: Message title
+
+    Returns:
+        bool: True if successful
+    """
+    try:
+        card = {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0076D7",
+            "summary": title,
+            "sections": [{
+                "activityTitle": title,
+                "text": message,
+                "markdown": True
+            }]
+        }
+
+        response = requests.post(
+            webhook_url,
+            json=card,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Failed to post message to Teams: {str(e)}")
+        return False

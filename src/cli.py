@@ -770,6 +770,7 @@ def cmd_orchestrate_eod(args):
     import time
 
     print("🚀 Starting SWING_BOT EOD Orchestration...")
+    print(f"Broker: {getattr(args, 'broker', 'upstox').upper()}")
     print(f"Data output: {getattr(args, 'data_out', None)}")
     print(f"Max age: {getattr(args, 'max_age_days', None)} days, Required days: {getattr(args, 'required_days', None)}")
     print(f"Top candidates: {getattr(args, 'top', None)}, Strict audit: {getattr(args, 'strict', False)}")
@@ -777,20 +778,31 @@ def cmd_orchestrate_eod(args):
     print(f"Metrics: {getattr(args, 'metrics', False)}, Dashboard: {getattr(args, 'dashboard', False)}")
     print("-" * 60)
 
-    # Check and refresh Upstox token if needed
-    print("🔑 Checking Upstox API token...")
+    # Check and refresh token based on broker
+    broker = getattr(args, 'broker', 'upstox')
+    print(f"🔑 Checking {broker.upper()} API token...")
     if not getattr(args, 'skip_token_check', False):
         try:
-            from .token_manager import UpstoxTokenManager
-            token_manager = UpstoxTokenManager()
+            if broker == 'upstox':
+                from .token_manager import UpstoxTokenManager
+                token_manager = UpstoxTokenManager()
+            elif broker == 'icici':
+                from .icici_token_manager import ICICISessionManager
+                token_manager = ICICISessionManager()
+            else:
+                raise ValueError(f"Unsupported broker: {broker}")
+
             token_valid = token_manager.check_and_refresh_token()
 
             if not token_valid:
-                print("❌ Token refresh failed - cannot proceed with orchestration")
-                print("   Please run: python src/token_manager.py --refresh")
+                print(f"❌ {broker.upper()} token refresh failed - cannot proceed with orchestration")
+                if broker == 'upstox':
+                    print("   Please run: python src/token_manager.py --refresh")
+                elif broker == 'icici':
+                    print("   Please run: .\setup_icici.ps1 -Authenticate")
                 sys.exit(1)
 
-            print("✅ API token is valid")
+            print(f"✅ {broker.upper()} API token is valid")
         except Exception as e:
             print(f"⚠️  Token check failed: {e}")
             print("   Proceeding anyway (token may be valid)...")
@@ -820,7 +832,7 @@ def cmd_orchestrate_eod(args):
         import shutil
 
         try:
-            fetch_nifty50_data(days=args.required_days, out_path=args.data_out, include_etfs=True, max_workers=8)
+            fetch_nifty50_data(days=args.required_days, out_path=args.data_out, include_etfs=True, max_workers=8, broker=broker)
         except RuntimeError as e:
             if "No data processed successfully" in str(e):
                 print(f"⚠️  API data fetch failed, using existing historical data...")
@@ -830,7 +842,7 @@ def cmd_orchestrate_eod(args):
                     print(f"📋 Copying existing data from {existing_data_path} to {args.data_out}")
                     # Load and save in the expected format
                     df_existing = load_dataset(existing_data_path)
-                    save_dataset(df_existing, args.data_out)
+                    save_dataset(df_existing, f"{args.data_out}/nifty50_data_today.csv")
                     print("✅ Existing data loaded successfully")
                 else:
                     raise e
@@ -839,7 +851,7 @@ def cmd_orchestrate_eod(args):
 
         # Validate
         today_ist = get_today_ist()
-        main_meta = load_metadata(args.data_out)
+        main_meta = load_metadata(f"{args.data_out}/nifty50_data_today.csv")
         validate_recency(main_meta, today_ist, max_age_days=args.max_age_days)
         validate_window(main_meta, required_days=args.required_days)
         validate_symbols(main_meta, expected_count=4)  # Match API-returned data
@@ -850,7 +862,7 @@ def cmd_orchestrate_eod(args):
         screener_out = "outputs/screener/screener_latest_temp.csv"
         Path(screener_out).parent.mkdir(parents=True, exist_ok=True)
         
-        df = load_dataset(args.data_out)
+        df = load_dataset(f"{args.data_out}/nifty50_data_today.csv")
         # Handle column names
         if 'Stock' in df.columns and 'Symbol' not in df.columns:
             df = df.rename(columns={'Stock': 'Symbol'})
@@ -886,24 +898,32 @@ def cmd_orchestrate_eod(args):
                                  getattr(args, 'confirm_rsi', False), getattr(args, 'confirm_macd', False), getattr(args, 'confirm_hist', False))
         print(f"✅ Backtests completed: selected {sel}")
         
-        # 4. Select strategy and build GTT plan
-        print("🎯 Step 4: Select strategy and build GTT plan...")
-        fallback_strategies = ['Donchian_Breakout']
-        candidates = None
-        selected_strategy = None
-        
-        for strat in [sel] + fallback_strategies:
-            flag_col = f'{strat}_Flag'
-            if flag_col in latest.columns:
-                cand = latest[latest[flag_col] == 1].nlargest(args.top, 'CompositeScore').head(args.top)
-                if not cand.empty:
-                    candidates = cand
-                    selected_strategy = strat
-                    break
-        
-        if candidates is None:
-            candidates = latest.nlargest(args.top, 'CompositeScore')
-            selected_strategy = 'CompositeScore'
+        # 4. Select strategy and build GTT plan (ENSEMBLE APPROACH for safety)
+        print("🎯 Step 4: Select strategy and build GTT plan (Ensemble approach)...")
+
+        # ENSEMBLE APPROACH: Require multiple strategy confirmations for higher quality
+        momentum_flags = ['VCP_Flag', 'SEPA_Flag', 'SqueezeBreakout_Flag', 'Donchian_Breakout']
+        ensemble_count = latest[momentum_flags].sum(axis=1)
+
+        # Primary selection: Stocks with 2+ momentum strategy confirmations
+        strong_candidates = latest[ensemble_count >= 2].nlargest(args.top, 'CompositeScore')
+
+        if not strong_candidates.empty:
+            candidates = strong_candidates.head(args.top)
+            selected_strategy = 'Ensemble_2Plus'
+            print(f"✅ Found {len(candidates)} candidates with 2+ strategy confirmations")
+        else:
+            # Fallback: Stocks with at least 1 momentum strategy + high composite score
+            single_confirm = latest[ensemble_count >= 1].nlargest(args.top * 2, 'CompositeScore')
+            if not single_confirm.empty:
+                candidates = single_confirm.head(args.top)
+                selected_strategy = 'Ensemble_1Plus'
+                print(f"✅ Found {len(candidates)} candidates with 1+ strategy confirmations")
+            else:
+                # Last resort: Pure composite score ranking
+                candidates = latest.nlargest(args.top, 'CompositeScore')
+                selected_strategy = 'CompositeScore_Only'
+                print(f"⚠️  No strategy signals found, using top {len(candidates)} by CompositeScore only")
         
         # Build plan with audit
         cfg = load_config(args.config) if args.config else {}
@@ -941,7 +961,7 @@ def cmd_orchestrate_eod(args):
         # 6. Run standalone plan audit
         print("🔍 Step 6: Run standalone plan audit...")
         audit_out = "outputs/gtt/gtt_plan_audited.csv"
-        audit_success = run_plan_audit(plan_out, args.data_out, screener_out, audit_out, audit_params)
+        audit_success = run_plan_audit(plan_out, f"{args.data_out}/nifty50_data_today.csv", screener_out, audit_out, audit_params)
         if not audit_success:
             print("❌ Plan audit failed!")
             sys.exit(1)
@@ -957,7 +977,8 @@ def cmd_orchestrate_eod(args):
             out_csv=reconciled_out,
             out_report=reconcile_report,
             adjust_mode='strict' if args.strict else 'soft',  # Use strict mode if global strict flag
-            max_entry_ltppct=0.02
+            max_entry_ltppct=0.02,
+            broker=broker
         )
         
         # Check reconciliation results
@@ -992,7 +1013,7 @@ def cmd_orchestrate_eod(args):
             risk_multiplier=audit_params.risk_multiplier,
             reward_multiplier=audit_params.reward_multiplier
         )
-        final_audit_success = run_plan_audit(reconciled_out, args.data_out, screener_out, final_audit_out, final_audit_params)
+        final_audit_success = run_plan_audit(reconciled_out, f"{args.data_out}/nifty50_data_today.csv", screener_out, final_audit_out, final_audit_params)
         if not final_audit_success:
             print("❌ Final plan audit failed!")
             sys.exit(1)
@@ -1000,6 +1021,11 @@ def cmd_orchestrate_eod(args):
         
         # Update audit_out to point to final audited reconciled plan
         audit_out = final_audit_out
+        
+        # Calculate audit results for summary
+        audited_plan = pd.read_csv(audit_out)
+        pass_count = (audited_plan['Audit_Flag'] == 'PASS').sum()
+        fail_count = (audited_plan['Audit_Flag'] == 'FAIL').sum()
         
         # 9. Optional: Multi-TF Excel
         if args.multi_tf:
@@ -1037,9 +1063,6 @@ def cmd_orchestrate_eod(args):
 
             webhook_url = os.environ.get('TEAMS_WEBHOOK_URL')
             if webhook_url:
-                audited_plan = pd.read_csv(audit_out)
-                pass_count = (audited_plan['Audit_Flag'] == 'PASS').sum()
-                fail_count = (audited_plan['Audit_Flag'] == 'FAIL').sum()
                 top_rows = audited_plan.head(5)[['Symbol', 'ENTRY_trigger_price', 'STOPLOSS_trigger_price',
                                                 'TARGET_trigger_price', 'DecisionConfidence', 'Audit_Flag']]
 
@@ -1393,70 +1416,249 @@ def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False) -> Li
     return placed_orders
 
 
-def cmd_schedule_daily(args):
-    """Generate scheduling commands for daily automation."""
-    repo_path = args.repo_path.replace('\\', '\\\\') if args.platform == 'windows' else args.repo_path
+def cmd_hourly_update(args):
+    """Run simplified hourly update for manual trading."""
+    import pandas as pd
+    from pathlib import Path
+    from datetime import datetime
+    import time
 
-    print("📅 Daily Scheduling Commands")
-    print("=" * 50)
+    print("🚀 Starting SWING_BOT Hourly Update...")
+    print(f"Data path: {args.data_path}")
+    print(f"Output dir: {args.output_dir}")
+    print(f"Top stocks: {args.top}")
+    print(f"Email notifications: {args.notify_email}")
+    print(f"Telegram notifications: {args.notify_telegram}")
+    print("-" * 50)
 
-    if args.platform == 'windows':
-        print("🪟 Windows Task Scheduler Commands:")
-        print()
+    # Create output directory
+    output_path = Path(args.output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-        # EOD run
-        eod_cmd = f'''schtasks /Create /TN "SWING_BOT_EOD" /TR "python {repo_path}\\src\\cli.py orchestrate-live --data-out data\\nifty50_data.csv --top 25 --strict --post-teams --live true --place-gtt true --tsl false --confirm-rsi true --confirm-macd true --confirm-hist true --run-at 16:15" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 16:15'''
-        print("EOD Run (16:15 IST weekdays):")
-        print(eod_cmd)
-        print()
+    try:
+        # 1. Load existing data
+        print("📊 Step 1: Loading data...")
+        if not Path(args.data_path).exists():
+            raise FileNotFoundError(f"Data file not found: {args.data_path}")
 
-        # Pre-open adjust
-        preopen_cmd = f'''schtasks /Create /TN "SWING_BOT_PreOpen" /TR "python {repo_path}\\src\\cli.py orchestrate-live --data-out data\\nifty50_data.csv --top 25 --strict --post-teams --live true --place-gtt false --tsl false --confirm-rsi true --confirm-macd true --confirm-hist true --run-at 09:00 --reconcile-only true" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 09:00'''
-        print("Pre-Open Adjust (09:00 IST weekdays):")
-        print(preopen_cmd)
-        print()
+        df = load_dataset(args.data_path)
+        latest_date = pd.to_datetime(df['Date']).max()
+        print(f"✅ Data loaded: {len(df)} records, latest date: {latest_date.date()}")
 
-        print("📝 To create tasks:")
-        print("1. Copy and run the EOD command in Command Prompt (as Administrator)")
-        print("2. Copy and run the Pre-Open command in Command Prompt (as Administrator)")
-        print("3. Verify tasks in Task Scheduler: taskschd.msc")
+        # Check if data is recent enough (within last 2 hours)
+        hours_old = (datetime.now() - latest_date).total_seconds() / 3600
+        if hours_old > 2 and not args.force_refresh:
+            print(f"⚠️  Data is {hours_old:.1f} hours old. Use --force-refresh to update.")
+            return
 
-    else:  # Linux
-        print("🐧 Linux Cron Commands:")
-        print()
+        # 2. Run screener and identify trade signals
+        print("🔍 Step 2: Running screener and identifying trade signals...")
+        from .signals import compute_signals
+        from .scoring import compute_composite_score
+        from .ltp_reconcile import compute_stop_target_from_entry
 
-        # EOD run
-        eod_cron = f'''# EOD run (16:15 IST weekdays)
-15 16 * * 1-5 cd {repo_path} && /usr/bin/python3 -m src.cli orchestrate-live \\
-  --data-out data/nifty50_data.csv --top 25 --strict --post-teams \\
-  --live true --place-gtt true --tsl false --confirm-rsi true --confirm-macd true --confirm-hist true \\
-  --run-at 16:15 >> outputs/logs/eod.log 2>&1'''
-        print("EOD Run (16:15 IST weekdays):")
-        print(eod_cron)
-        print()
+        def calculate_entry_target(stock_data: dict, strategy: str) -> dict:
+            """Calculate entry price, stop loss, and target for a trade signal."""
+            close_price = stock_data.get('Close', 0)
+            atr_value = stock_data.get('ATR14', None)
 
-        # Pre-open adjust
-        preopen_cron = f'''# Pre-open adjust (09:00 IST weekdays)
-0 9 * * 1-5 cd {repo_path} && /usr/bin/python3 -m src.cli orchestrate-live \\
-  --data-out data/nifty50_data.csv --top 25 --strict --post-teams \\
-  --live true --place-gtt false --tsl false --confirm-rsi true --confirm-macd true --confirm-hist true \\
-  --run-at 09:00 --reconcile-only true >> outputs/logs/preopen.log 2>&1'''
-        print("Pre-Open Adjust (09:00 IST weekdays):")
-        print(preopen_cron)
-        print()
+            # Determine entry price based on strategy
+            if strategy in ['SEPA', 'VCP', 'Donchian_Breakout', 'BBKC_Squeeze', 'SqueezeBreakout']:
+                # Breakout strategies: entry above recent high
+                entry_price = close_price * 1.001  # Slight buffer above current close
+            elif strategy == 'MR':
+                # Mean reversion: entry at current close
+                entry_price = close_price
+            elif strategy == 'AVWAP_Reclaim':
+                # Reclaim strategy: entry at current close
+                entry_price = close_price
+            else:
+                # Default: entry at current close
+                entry_price = close_price
 
-        print("📝 To add to crontab:")
-        print("1. Run: crontab -e")
-        print("2. Add the above lines to your crontab")
-        print("3. Save and exit")
-        print("4. Verify: crontab -l")
+            # Calculate stop loss and target using existing logic
+            stop_loss, target_price = compute_stop_target_from_entry(entry_price, strategy, atr_value)
 
-    print()
-    print("⚠️  Important Notes:")
-    print("- Ensure UPSTOX_ACCESS_TOKEN is set in environment or .env")
-    print("- For live trading: ensure EDIS authorization is active")
-    print("- Test commands manually first before scheduling")
-    print("- Monitor logs in outputs/logs/ for any issues")
+            return {
+                'entry_price': entry_price,
+                'stop_loss': stop_loss,
+                'target_price': target_price
+            }
+
+        # Filter to latest data
+        latest = df.sort_values('Date').groupby('Symbol').tail(1).reset_index(drop=True)
+
+        # Compute signals
+        latest = compute_signals(latest)
+        latest['CompositeScore'] = compute_composite_score(latest)
+
+        # Identify stocks with active trading signals
+        signal_columns = ['SEPA_Flag', 'VCP_Flag', 'Donchian_Breakout', 'MR_Flag', 'BBKC_Squeeze_Flag', 'SqueezeBreakout_Flag', 'AVWAP_Reclaim_Flag']
+        latest['Has_Signal'] = latest[signal_columns].max(axis=1)
+
+        # Get stocks with active signals
+        signal_stocks = latest[latest['Has_Signal'] == 1].copy()
+
+        # If no active signals, use top composite score stocks as potential signals
+        if len(signal_stocks) == 0:
+            print("⚠️  No active signals found, using top composite score stocks as potential trades...")
+            top_by_score = latest.nlargest(min(args.top * 2, len(latest)), 'CompositeScore')
+            signal_stocks = top_by_score.copy()
+            # Assign default strategy for high-score stocks
+            signal_stocks['Selected_Strategy'] = 'CompositeScore'
+
+        # Calculate entry prices and targets for signal stocks
+        trade_signals = []
+        for _, stock in signal_stocks.iterrows():
+            try:
+                # Determine the active signal/strategy
+                active_signals = [col for col in signal_columns if stock.get(col, 0) == 1]
+                strategy = active_signals[0].replace('_Flag', '') if active_signals else stock.get('Selected_Strategy', 'CompositeScore')
+
+                # Calculate entry and target using rr_gate logic
+                entry_target = calculate_entry_target(stock.to_dict(), strategy)
+
+                trade_signal = {
+                    'Symbol': stock['Symbol'],
+                    'Strategy': strategy,
+                    'Entry_Price': round(entry_target.get('entry_price', stock['Close']), 2),
+                    'Target_Price': round(entry_target.get('target_price', 0), 2),
+                    'Stop_Loss': round(entry_target.get('stop_loss', 0), 2),
+                    'CompositeScore': round(stock.get('CompositeScore', 0), 2),
+                    'RSI14': round(stock.get('RSI14', 0), 2),
+                    'Latest_Close': round(stock.get('Close', 0), 2)
+                }
+                trade_signals.append(trade_signal)
+
+            except Exception as e:
+                print(f"⚠️  Error calculating entry/target for {stock['Symbol']}: {e}")
+                continue
+
+        # Sort trade signals by composite score
+        trade_signals.sort(key=lambda x: x['CompositeScore'], reverse=True)
+        trade_signals = trade_signals[:args.top]  # Limit to top N
+
+        screener_summary = {
+            'total_stocks': len(latest),
+            'stocks_with_signals': len(signal_stocks),
+            'trade_signals': len(trade_signals)
+        }
+
+        print(f"✅ Screener completed: {screener_summary['stocks_with_signals']}/{screener_summary['total_stocks']} stocks with signals, {screener_summary['trade_signals']} trade signals identified")
+
+        # 3. Generate Excel report
+        print("📊 Step 3: Generating Excel report...")
+        excel_path = output_path / f"SWING_BOT_Hourly_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+
+        # Create Excel with trade signals
+        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+            # Trade signals sheet
+            if trade_signals:
+                signals_df = pd.DataFrame(trade_signals)
+                signals_df.to_excel(writer, sheet_name='Trade_Signals', index=False)
+            else:
+                # Create empty sheet if no signals
+                pd.DataFrame(columns=['Symbol', 'Strategy', 'Entry_Price', 'Target_Price', 'Stop_Loss', 'CompositeScore']).to_excel(writer, sheet_name='Trade_Signals', index=False)
+
+            # All stocks with signals
+            signal_stocks.to_excel(writer, sheet_name='All_Signals', index=False)
+
+            # Summary sheet
+            summary_data = {
+                'Metric': ['Total Stocks', 'Stocks with Signals', 'Trade Signals', 'Latest Date', 'Generated At'],
+                'Value': [
+                    screener_summary['total_stocks'],
+                    screener_summary['stocks_with_signals'],
+                    len(trade_signals),
+                    str(latest_date.date()),
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ]
+            }
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+
+        print(f"✅ Excel report generated: {excel_path}")
+
+        # 4. Send notifications
+        if args.notify_email or args.notify_telegram:
+            print("📢 Step 4: Sending notifications...")
+
+            # Email notification
+            if args.notify_email:
+                try:
+                    from .notifier_email import send_email_notification
+
+                    subject = f"SWING_BOT Trade Signals - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+                    # Create trade signals summary
+                    if trade_signals:
+                        signals_text = "\n".join([
+                            f"• {signal['Symbol']} ({signal['Strategy']}): Entry ₹{signal['Entry_Price']}, Target ₹{signal['Target_Price']}"
+                            for signal in trade_signals[:10]  # Show top 10
+                        ])
+                        if len(trade_signals) > 10:
+                            signals_text += f"\n... and {len(trade_signals) - 10} more signals"
+                    else:
+                        signals_text = "No active trade signals at this time."
+
+                    body = f"""
+SWING_BOT Trade Signals Update
+
+📊 Market Scan: {screener_summary['stocks_with_signals']}/{screener_summary['total_stocks']} stocks showing signals
+🎯 Active Trade Signals: {len(trade_signals)}
+
+{signals_text}
+
+Latest data: {latest_date.date()}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+See attached Excel report for complete details and entry/exit levels.
+"""
+
+                    success = send_email_notification(
+                        subject=subject,
+                        html_body=body,
+                        attachments=[str(excel_path)]
+                    )
+
+                    if success:
+                        print("✅ Email notification sent")
+                    else:
+                        print("❌ Email notification failed")
+
+                except Exception as e:
+                    print(f"❌ Email notification error: {e}")
+
+            # Telegram notification
+            if args.notify_telegram:
+                try:
+                    from .telegram_notifier import TelegramNotifier
+
+                    notifier = TelegramNotifier()
+                    success = notifier.send_hourly_update(
+                        excel_path=str(excel_path),
+                        trade_signals=trade_signals,
+                        screener_summary=screener_summary
+                    )
+
+                    if success:
+                        print("✅ Telegram notification sent")
+                    else:
+                        print("❌ Telegram notification failed")
+
+                except Exception as e:
+                    print(f"❌ Telegram notification error: {e}")
+
+        print("\n" + "="*60)
+        print("🎉 SWING_BOT Hourly Update Complete!")
+        print(f"📊 Market scan: {screener_summary['stocks_with_signals']}/{screener_summary['total_stocks']} stocks with signals")
+        print(f"🎯 Trade signals: {len(trade_signals)}")
+        print(f"📎 Excel report: {excel_path}")
+        print("="*60)
+
+    except Exception as e:
+        print(f"❌ Hourly update failed: {str(e)}")
+        raise
 
 
 def cmd_teams_dashboard(args):
@@ -1683,7 +1885,8 @@ def main():
     p.add_argument('--confirm-rsi', action='store_true', help='Require RSI confirmation for entries')
     p.add_argument('--confirm-macd', action='store_true', help='Require MACD confirmation for entries')
     p.add_argument('--confirm-hist', action='store_true', help='Require MACD histogram rising for entries')
-    p.add_argument('--skip-token-check', action='store_true', help='Skip Upstox token validation (for demo/testing)')
+    p.add_argument('--skip-token-check', action='store_true', help='Skip token validation (for demo/testing)')
+    p.add_argument('--broker', choices=['upstox', 'icici'], default='upstox', help='Broker to use for API operations')
     p.set_defaults(func=cmd_orchestrate_eod)
 
     p = sub.add_parser('orchestrate-live', help='Run live EOD pipeline: fetch live quotes → screener → backtest → select → plan → audit → LTP reconcile → place GTT orders')
@@ -1702,10 +1905,14 @@ def main():
     p.add_argument('--config', default=None, help='Path to config.yaml')
     p.set_defaults(func=cmd_orchestrate_live)
 
-    p = sub.add_parser('schedule-daily', help='Generate scheduling commands for daily EOD runs')
-    p.add_argument('--platform', choices=['windows', 'linux'], default='windows', help='Target platform for scheduling')
-    p.add_argument('--repo-path', default='C:\\Users\\K01340\\SWING_BOT_GIT\\SWING_BOT', help='Path to repository')
-    p.set_defaults(func=cmd_schedule_daily)
+    p = sub.add_parser('hourly-update', help='Run hourly update: screener → Excel → notifications (no order placement)')
+    p.add_argument('--data-path', default='data/nifty50_data_today.csv', help='Path to existing data file')
+    p.add_argument('--output-dir', default='outputs/hourly', help='Output directory for results')
+    p.add_argument('--top', type=int, default=25, help='Top N stocks to show')
+    p.add_argument('--notify-email', action='store_true', help='Send email notification')
+    p.add_argument('--notify-telegram', action='store_true', help='Send Telegram notification')
+    p.add_argument('--force-refresh', action='store_true', help='Force data refresh even if recent')
+    p.set_defaults(func=cmd_hourly_update)
 
     args = parser.parse_args()
     if not hasattr(args, 'func'):

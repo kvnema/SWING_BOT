@@ -5,6 +5,19 @@ from .backtest import backtest_strategy
 
 
 def select_best_strategy(df: pd.DataFrame, strategies: dict, cfg: dict, out_dir: str, confirm_rsi: bool = False, confirm_macd: bool = False, confirm_hist: bool = False) -> dict:
+    """
+    FIXED HIERARCHY STRATEGY SELECTION (Safer than backtest-driven per-stock selection)
+
+    Eliminates overfitting risk by using predetermined priority order:
+    1. VCP (Volume Contraction Pattern) - Highest quality setups
+    2. SEPA (Stage-Enhanced Pullback Alert) - Trend template + breakout
+    3. Squeeze (Bollinger-Keltner squeeze breakout)
+    4. Donchian (Channel breakout)
+    5. MR/AVWAP (Mean reversion only as fallback)
+
+    No more per-stock backtest selection that causes severe overfitting!
+    """
+    # Still run backtests for reporting/analysis, but don't use for selection
     results = {}
     for name, flag in strategies.items():
         res = backtest_strategy(df, flag, cfg, confirm_rsi, confirm_macd, confirm_hist)
@@ -16,9 +29,27 @@ def select_best_strategy(df: pd.DataFrame, strategies: dict, cfg: dict, out_dir:
         res['trades'].to_csv(od / 'trades.csv', index=False)
         res['equity_curve'].to_csv(od / 'equity_curve.csv', index=False)
 
-    # choose by Sharpe, tie-breaker ExpectancyR
-    best = max(results.items(), key=lambda kv: (kv[1].get('Sharpe', 0), kv[1].get('ExpectancyR', 0)))[0]
-    sel = {'selected': best, 'results': results}
+    # FIXED HIERARCHY: Always use this priority order (no backtest-driven selection)
+    strategy_hierarchy = ['VCP', 'SEPA', 'Squeeze', 'Donchian', 'MR', 'AVWAP']
+
+    # Select first available strategy from hierarchy
+    best = None
+    for strategy in strategy_hierarchy:
+        if strategy in strategies:
+            best = strategy
+            break
+
+    # Fallback to first available if hierarchy fails
+    if best is None:
+        best = list(strategies.keys())[0]
+
+    sel = {
+        'selected': best,
+        'results': results,
+        'hierarchy_selection': True,
+        'strategy_priority': strategy_hierarchy,
+        'note': 'Fixed hierarchy eliminates backtest overfitting risk'
+    }
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     with open(Path(out_dir) / 'selected_strategy.json', 'w') as f:
         json.dump(sel, f, indent=2)

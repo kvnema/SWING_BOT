@@ -81,6 +81,28 @@ class FinalExcelGenerator:
                 ws[f'A{row+5}'] = f"Total Return: {metrics.get('Total_Return', 0):.1f}%"
                 ws[f'A{row+6}'] = f"Win Rate: {metrics.get('Win_Rate', 0):.1f}%"
 
+        # Entry Methodology
+        ws['A10'] = "Entry Methodology:"
+        ws['A10'].font = Font(bold=True)
+        
+        selected_strategy = backtest_results.get('selected_strategy', 'N/A') if backtest_results else 'N/A'
+        if selected_strategy == 'AVWAP':
+            ws['A11'] = "AVWAP Reclaim Strategy:"
+            ws['A12'] = "• Entry: Wait for price to reclaim above 60-day AVWAP"
+            ws['A13'] = "• Alternative: CMP entry if already above AVWAP60"
+            ws['A14'] = "• Stop Loss: EMA50 level"
+            ws['A15'] = "• Target: 2:1 risk-reward ratio"
+        elif selected_strategy in ['Donchian', 'Squeeze', 'SEPA', 'VCP']:
+            ws['A11'] = f"{selected_strategy} Breakout Strategy:"
+            ws['A12'] = "• Entry: Above breakout level with momentum confirmation"
+            ws['A13'] = "• Stop Loss: ATR-based below entry"
+            ws['A14'] = "• Target: 2:1 risk-reward ratio"
+        else:
+            ws['A11'] = f"{selected_strategy} Strategy:"
+            ws['A12'] = "• Entry: Pullback to EMA20 with RSI/MACD confirmation"
+            ws['A13'] = "• Stop Loss: ATR-based below entry"
+            ws['A14'] = "• Target: 2:1 risk-reward ratio"
+
         # Portfolio summary
         ws['E4'] = "Portfolio Summary:"
         ws['E4'].font = Font(bold=True)
@@ -114,13 +136,13 @@ class FinalExcelGenerator:
 
         # Specific column ordering as per requirements
         headers = [
-            'Symbol', 'Qty', 'ENTRY_trigger_price', 'TARGET_trigger_price', 'STOPLOSS_trigger_price',
+            'Symbol', 'Strategy', 'Qty', 'ENTRY_trigger_price', 'TARGET_trigger_price', 'STOPLOSS_trigger_price',
             'DecisionConfidence', 'Confidence_Level', 'R', 'Explanation', 'GTT_Explanation',
+            'AVWAP60', 'EMA20', 'EMA50', 'Close', 'Entry_Logic', 'Stop_Logic', 'Target_Logic',
             'RSI14_D', 'RSI_Above50_D', 'RSI_Overbought_D', 'MACD_Line_D', 'MACD_Signal_D', 'MACD_Hist_D', 'MACD_CrossUp_D', 'MACD_AboveZero_D',
             'RSI14_H4', 'RSI_Above50_H4', 'MACD_CrossUp_H4',
             'RSI_MACD_Confirmations_OK', 'RSI_MACD_Notes',
-            'Audit_Flag', 'Issues', 'Fix_Suggestion', 'Pivot_Source', 'Entry_Logic', 'Stop_Logic', 
-            'Target_Logic', 'Latest_Close', 'Latest_LTP', 'Canonical_Entry', 'Canonical_Stop', 'Canonical_Target'
+            'Audit_Flag', 'Issues', 'Fix_Suggestion', 'Pivot_Source', 'Latest_Close', 'Latest_LTP', 'Canonical_Entry', 'Canonical_Stop', 'Canonical_Target'
         ]
 
         # Write headers
@@ -133,40 +155,45 @@ class FinalExcelGenerator:
         # Data - write in specific column order
         for i, (_, row) in enumerate(gtt_df.iterrows(), 3):
             ws[f'A{i}'] = row.get('Symbol', '')
-            ws[f'B{i}'] = row.get('Qty', 0)
-            ws[f'C{i}'] = row.get('ENTRY_trigger_price', 0)
-            ws[f'D{i}'] = row.get('TARGET_trigger_price', 0)
-            ws[f'E{i}'] = row.get('STOPLOSS_trigger_price', 0)
-            ws[f'F{i}'] = row.get('DecisionConfidence', 0)
-            ws[f'G{i}'] = row.get('Confidence_Level', '')
-            ws[f'H{i}'] = row.get('R', 0)
-            ws[f'I{i}'] = row.get('Explanation', '')
-            ws[f'J{i}'] = row.get('GTT_Explanation', '')
-            ws[f'K{i}'] = row.get('RSI14', 0)  # RSI14_D
-            ws[f'L{i}'] = row.get('RSI_Above50', False)  # RSI_Above50_D
-            ws[f'M{i}'] = row.get('RSI_Overbought', False)  # RSI_Overbought_D
-            ws[f'N{i}'] = row.get('MACD_Line', 0)  # MACD_Line_D
-            ws[f'O{i}'] = row.get('MACD_Signal', 0)  # MACD_Signal_D
-            ws[f'P{i}'] = row.get('MACD_Hist', 0)  # MACD_Hist_D
-            ws[f'Q{i}'] = row.get('MACD_CrossUp', False)  # MACD_CrossUp_D
-            ws[f'R{i}'] = row.get('MACD_AboveZero', False)  # MACD_AboveZero_D
-            ws[f'S{i}'] = row.get('RSI14_H4', 0)  # RSI14_H4
-            ws[f'T{i}'] = row.get('RSI_Above50_H4', False)  # RSI_Above50_H4
-            ws[f'U{i}'] = row.get('MACD_CrossUp_H4', False)  # MACD_CrossUp_H4
-            ws[f'V{i}'] = row.get('RSI_MACD_Confirmations_OK', False)
-            ws[f'W{i}'] = row.get('RSI_MACD_Notes', '')
-            ws[f'X{i}'] = row.get('Audit_Flag', '')
-            ws[f'Y{i}'] = row.get('Issues', '')
-            ws[f'Z{i}'] = row.get('Fix_Suggestion', '')
-            ws[f'AA{i}'] = row.get('Pivot_Source', '')
-            ws[f'AB{i}'] = row.get('Entry_Logic', '')
-            ws[f'AC{i}'] = row.get('Stop_Logic', '')
-            ws[f'AD{i}'] = row.get('Target_Logic', '')
-            ws[f'AE{i}'] = row.get('Latest_Close', '')
-            ws[f'AF{i}'] = row.get('Latest_LTP', '')
-            ws[f'AG{i}'] = row.get('Canonical_Entry', '')
-            ws[f'AH{i}'] = row.get('Canonical_Stop', '')
-            ws[f'AI{i}'] = row.get('Canonical_Target', '')
+            ws[f'B{i}'] = row.get('Strategy', '')
+            ws[f'C{i}'] = row.get('Qty', 0)
+            ws[f'D{i}'] = row.get('ENTRY_trigger_price', 0)
+            ws[f'E{i}'] = row.get('TARGET_trigger_price', 0)
+            ws[f'F{i}'] = row.get('STOPLOSS_trigger_price', 0)
+            ws[f'G{i}'] = row.get('DecisionConfidence', 0)
+            ws[f'H{i}'] = row.get('Confidence_Level', '')
+            ws[f'I{i}'] = row.get('R', 0)
+            ws[f'J{i}'] = row.get('Explanation', '')
+            ws[f'K{i}'] = row.get('GTT_Explanation', '')
+            ws[f'L{i}'] = row.get('AVWAP60', 0)
+            ws[f'M{i}'] = row.get('EMA20', 0)
+            ws[f'N{i}'] = row.get('EMA50', 0)
+            ws[f'O{i}'] = row.get('Close', 0)
+            ws[f'P{i}'] = row.get('Entry_Logic', '')
+            ws[f'Q{i}'] = row.get('Stop_Logic', '')
+            ws[f'R{i}'] = row.get('Target_Logic', '')
+            ws[f'S{i}'] = row.get('RSI14', 0)  # RSI14_D
+            ws[f'T{i}'] = row.get('RSI_Above50', False)  # RSI_Above50_D
+            ws[f'U{i}'] = row.get('RSI_Overbought', False)  # RSI_Overbought_D
+            ws[f'V{i}'] = row.get('MACD_Line', 0)  # MACD_Line_D
+            ws[f'W{i}'] = row.get('MACD_Signal', 0)  # MACD_Signal_D
+            ws[f'X{i}'] = row.get('MACD_Hist', 0)  # MACD_Hist_D
+            ws[f'Y{i}'] = row.get('MACD_CrossUp', False)  # MACD_CrossUp_D
+            ws[f'Z{i}'] = row.get('MACD_AboveZero', False)  # MACD_AboveZero_D
+            ws[f'AA{i}'] = row.get('RSI14_H4', 0)  # RSI14_H4
+            ws[f'AB{i}'] = row.get('RSI_Above50_H4', False)  # RSI_Above50_H4
+            ws[f'AC{i}'] = row.get('MACD_CrossUp_H4', False)  # MACD_CrossUp_H4
+            ws[f'AD{i}'] = row.get('RSI_MACD_Confirmations_OK', False)
+            ws[f'AE{i}'] = row.get('RSI_MACD_Notes', '')
+            ws[f'AF{i}'] = row.get('Audit_Flag', '')
+            ws[f'AG{i}'] = row.get('Issues', '')
+            ws[f'AH{i}'] = row.get('Fix_Suggestion', '')
+            ws[f'AI{i}'] = row.get('Pivot_Source', '')
+            ws[f'AJ{i}'] = row.get('Latest_Close', '')
+            ws[f'AK{i}'] = row.get('Latest_LTP', '')
+            ws[f'AL{i}'] = row.get('Canonical_Entry', '')
+            ws[f'AM{i}'] = row.get('Canonical_Stop', '')
+            ws[f'AN{i}'] = row.get('Canonical_Target', '')
 
         # Conditional formatting for confidence (column F)
         for i in range(3, len(gtt_df) + 3):

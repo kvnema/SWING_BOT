@@ -25,23 +25,34 @@ class LTPParams:
     timeframe_base: str = "1d"           # ensure we reconcile against same TF as plan
 
 
-def fetch_live_quotes(instrument_tokens: List[str], access_token: str) -> pd.DataFrame:
+def fetch_live_quotes(instrument_tokens: List[str], access_token: str, broker: str = 'upstox') -> pd.DataFrame:
     """
-    Fetch live LTP for each instrument_token using Upstox 'Full Market Quotes' API.
+    Fetch live LTP for each instrument_token using the specified broker's API.
 
     Args:
         instrument_tokens: List of instrument tokens (NSE_EQ)
-        access_token: Upstox API access token
+        access_token: API access token
+        broker: Broker to use ('upstox' or 'icici')
 
     Returns:
         DataFrame: instrument_token, symbol, last_price (LTP), timestamp, ohlc
     """
     if not access_token:
-        raise ValueError("UPSTOX_ACCESS_TOKEN not set")
+        raise ValueError(f"{broker.upper()}_ACCESS_TOKEN not set")
 
     if not instrument_tokens:
         return pd.DataFrame(columns=['instrument_token', 'symbol', 'last_price', 'timestamp', 'ohlc'])
 
+    if broker.lower() == 'upstox':
+        return _fetch_upstox_quotes(instrument_tokens, access_token)
+    elif broker.lower() == 'icici':
+        return _fetch_icici_quotes(instrument_tokens, access_token)
+    else:
+        raise ValueError(f"Unsupported broker: {broker}")
+
+
+def _fetch_upstox_quotes(instrument_tokens: List[str], access_token: str) -> pd.DataFrame:
+    """Fetch live quotes from Upstox API."""
     # Upstox Full Market Quotes v2 endpoint
     base_url = "https://api.upstox.com/v2/market-quote/quotes"
     headers = {
@@ -99,6 +110,43 @@ def fetch_live_quotes(instrument_tokens: List[str], access_token: str) -> pd.Dat
 
     df = pd.DataFrame(all_quotes)
     logger.info("Fetched {} live quotes".format(len(df)))
+    return df
+
+
+def _fetch_icici_quotes(instrument_tokens: List[str], access_token: str) -> pd.DataFrame:
+    """Fetch live quotes from ICICI API."""
+    from .icici_api import ICICIDirectAPI
+    
+    api = ICICIDirectAPI()
+    all_quotes = []
+    
+    # ICICI API expects symbols, not instrument tokens
+    # We need to convert instrument tokens to symbols
+    from .data_fetch import load_instrument_keys
+    instrument_keys = load_instrument_keys()
+    token_to_symbol = {v: k for k, v in instrument_keys.items()}
+    symbols = [token_to_symbol.get(token, token) for token in instrument_tokens]
+    
+    try:
+        quotes_data = api.get_live_quotes(symbols)
+        
+        for i, quote in enumerate(quotes_data):
+            # Normalize ICICI response to match Upstox format
+            # Assume quotes_data is a list of quote dictionaries
+            normalized_quote = {
+                'instrument_token': instrument_tokens[i] if i < len(instrument_tokens) else '',
+                'symbol': quote.get('symbol', symbols[i] if i < len(symbols) else ''),
+                'last_price': quote.get('last_price', quote.get('ltp', 0.0)),
+                'timestamp': quote.get('timestamp', ''),
+                'ohlc': quote.get('ohlc', {})
+            }
+            all_quotes.append(normalized_quote)
+            
+    except Exception as e:
+        logger.error(f"Failed to fetch ICICI quotes: {str(e)}")
+    
+    df = pd.DataFrame(all_quotes)
+    logger.info("Fetched {} ICICI live quotes".format(len(df)))
     return df
 
 
@@ -172,6 +220,9 @@ def reconcile_entry_stop_target(plan_df: pd.DataFrame, quotes_df: pd.DataFrame, 
         plan_df['Reconciliation_Issues'] = 'Live quotes not available'
         plan_df['Reconciliation_Fix'] = 'Ensure API token is valid for live quote fetching'
         return plan_df
+
+    # Merge plan_df with quotes_df on Symbol
+    merged_df = plan_df.merge(quotes_df, left_on='Symbol', right_on='symbol', how='left')
 
     # Initialize new columns
     reconciled_rows = []
@@ -329,7 +380,7 @@ Top adjustments:
 
 
 def reconcile_plan(plan_csv: str, out_csv: str, out_report: str,
-                  adjust_mode: str = "soft", max_entry_ltppct: float = 0.02) -> pd.DataFrame:
+                  adjust_mode: str = "soft", max_entry_ltppct: float = 0.02, broker: str = 'upstox') -> pd.DataFrame:
     """
     Main function to reconcile a GTT plan with live LTP.
 
@@ -339,6 +390,7 @@ def reconcile_plan(plan_csv: str, out_csv: str, out_report: str,
         out_report: Output reconciliation report path
         adjust_mode: "soft" or "strict"
         max_entry_ltppct: Maximum allowed LTP delta percentage
+        broker: Broker to use for live quotes ('upstox' or 'icici')
 
     Returns:
         Reconciled plan DataFrame
@@ -353,31 +405,28 @@ def reconcile_plan(plan_csv: str, out_csv: str, out_report: str,
     instrument_tokens = plan_df['InstrumentToken'].dropna().unique().tolist()
     print(f"DEBUG: Extracted {len(instrument_tokens)} instrument tokens: {instrument_tokens[:3]}")
 
+    # Get access token based on broker
+    if broker.lower() == 'upstox':
+        access_token = os.environ.get('UPSTOX_ACCESS_TOKEN')
+    elif broker.lower() == 'icici':
+        access_token = os.environ.get('ICICI_ACCESS_TOKEN')
+        if not access_token:
+            logger.warning("ICICI_ACCESS_TOKEN not set, falling back to Upstox for LTP reconciliation")
+            broker = 'upstox'  # Fallback
+            access_token = os.environ.get('UPSTOX_ACCESS_TOKEN')
+    else:
+        raise ValueError(f"Unsupported broker: {broker}")
+
+    if not access_token:
+        raise ValueError(f"Access token not available for {broker.upper()}")
+
+    # Fetch live quotes directly using the broker-specific function
+    quotes_df = fetch_live_quotes(instrument_tokens, access_token, broker)
+    
     # Create reverse mapping from instrument token to symbol
     from .data_fetch import load_instrument_keys
     instrument_keys = load_instrument_keys()
     token_to_symbol = {v: k for k, v in instrument_keys.items()}
-    symbols_to_fetch = [token_to_symbol.get(token) for token in instrument_tokens if token in token_to_symbol]
-    print(f"DEBUG: Mapped to {len(symbols_to_fetch)} symbols: {symbols_to_fetch[:3]}")
-
-    # Fetch live quotes using symbols (like data_fetch.py does)
-    from .data_fetch import fetch_live_quotes as fetch_by_symbols
-    quotes_df = fetch_by_symbols()
-    # Filter to only the symbols we need
-    if not quotes_df.empty and 'Symbol' in quotes_df.columns:
-        quotes_df = quotes_df[quotes_df['Symbol'].isin(symbols_to_fetch)]
-        print(f"DEBUG: Filtered quotes to {len(quotes_df)} matching symbols")
-        
-        # Rename columns to match expected format
-        quotes_df = quotes_df.rename(columns={'Symbol': 'symbol', 'Close': 'last_price'})
-        
-        # Create ohlc column as dict
-        quotes_df['ohlc'] = quotes_df.apply(lambda row: {
-            'open': row['Open'],
-            'high': row['High'], 
-            'low': row['Low'],
-            'close': row['last_price']
-        }, axis=1)
 
     # Setup reconciliation parameters
     params = LTPParams(

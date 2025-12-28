@@ -24,7 +24,7 @@ class AuditParams:
     max_entry_pct_diff: float = 0.02  # Max 2% deviation from pivot
     strict_mode: bool = False   # Fail fast on any audit failure
     risk_multiplier: float = 1.5  # ATR multiplier for stops
-    reward_multiplier: float = 2.0  # Risk-reward ratio for targets
+    reward_multiplier: float = 2.5  # MINIMUM 2.5:1 reward-to-risk ratio (increased from 2.0 for safety)
 
 class PlanAuditError(Exception):
     """Raised when plan audit fails in strict mode."""

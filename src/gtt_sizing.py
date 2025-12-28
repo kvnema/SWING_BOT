@@ -244,11 +244,28 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
         sym = r['Symbol'] if 'Symbol' in r else r.get('Stock', None)
         if pd.isna(sym):
             continue
-        entry_type = 'ABOVE' if strategy_name in ('Donchian_Breakout', 'VCP_Flag', 'SEPA_Flag') else 'BELOW'
-        if entry_type == 'ABOVE':
+        
+        # Determine entry type and trigger price based on strategy
+        if strategy_name == 'AVWAP':
+            # AVWAP strategy: entry based on AVWAP60 reclaim
+            avwap60 = float(r.get('AVWAP60', r.get('Close', 0)))
+            close = float(r.get('Close', 0))
+            if close >= avwap60:
+                # Already above AVWAP60, use current price as entry
+                entry_trigger = close
+                entry_type = 'ABOVE'
+            else:
+                # Below AVWAP60, wait for reclaim
+                entry_trigger = avwap60
+                entry_type = 'ABOVE'
+        elif strategy_name in ('Donchian_Breakout', 'VCP_Flag', 'SEPA_Flag'):
+            entry_type = 'ABOVE'
             entry_trigger = float(r.get('DonchianH20', r.get('Close', 0)))
         else:
+            # Default for MR and other strategies
+            entry_type = 'BELOW'
             entry_trigger = float(r.get('EMA20', r.get('Close', 0)))
+        
         atr = float(r.get('ATR14', 0.0))
         stop_trigger = entry_trigger - stop_mult * atr
         R = ( (entry_trigger + 2*(entry_trigger-stop_trigger)) - entry_trigger ) / (entry_trigger - stop_trigger) if (entry_trigger - stop_trigger)!=0 else 0
@@ -256,6 +273,19 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
         risk_amount = equity * risk_pct
         qty = floor(risk_amount / max(1e-6, (entry_trigger - stop_trigger)))
         instrument = instrument_map.get(sym, '')
+        # Determine entry logic explanation
+        if strategy_name == 'AVWAP':
+            avwap60 = float(r.get('AVWAP60', 0))
+            close = float(r.get('Close', 0))
+            if close >= avwap60:
+                entry_logic = f"CMP Entry: Price ₹{close:.2f} already above AVWAP60 ₹{avwap60:.2f}"
+            else:
+                entry_logic = f"AVWAP Reclaim: Wait for price above ₹{avwap60:.2f} (current ₹{close:.2f})"
+        elif strategy_name in ('Donchian_Breakout', 'VCP_Flag', 'SEPA_Flag'):
+            entry_logic = f"Breakout Entry: Above {r.get('DonchianH20', 0):.2f} with momentum"
+        else:
+            entry_logic = f"Pullback Entry: Below EMA20 {r.get('EMA20', 0):.2f}"
+        
         rows.append({
             'Date': pd.Timestamp.now().date(),
             'Symbol': sym,
@@ -286,6 +316,13 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
             'GoldenBear_Date': r.get('GoldenBear_Date', ''),
             'Trend_OK': r.get('Trend_OK', 0),
             'RS_Leader_Flag': r.get('RS_Leader_Flag', 0),
+            'AVWAP60': round(r.get('AVWAP60', 0), 2),
+            'EMA20': round(r.get('EMA20', 0), 2),
+            'EMA50': round(r.get('EMA50', 0), 2),
+            'Close': round(r.get('Close', 0), 2),
+            'Entry_Logic': entry_logic,
+            'Stop_Logic': f"EMA50-based stop: ₹{round(r.get('EMA50', entry_trigger - stop_mult * atr), 2)}",
+            'Target_Logic': f"2R target from entry",
             'Notes': ''
         })
     df = pd.DataFrame(rows)

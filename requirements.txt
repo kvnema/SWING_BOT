@@ -13,6 +13,7 @@ upstox-python-sdk>=1.0.0
 # CLI and configuration
 click>=8.1.0
 pyyaml>=6.0
+python-dotenv>=1.0.0
 
 # Excel and reporting
 openpyxl>=3.0.10

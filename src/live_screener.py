@@ -14,10 +14,10 @@ import seaborn as sns
 import os
 
 # Import instrument lists from config
-from .config import INSTRUMENT_KEYS, NIFTY_50_STOCKS, NSE_ETFS, ALL_INSTRUMENTS
+from .config import INSTRUMENT_KEYS, NIFTY_500_STOCKS, NSE_ETFS, ALL_INSTRUMENTS
 
 def run_live_screener(include_etfs=True):
-    instruments_to_screen = ALL_INSTRUMENTS if include_etfs else NIFTY_50_STOCKS
+    instruments_to_screen = ALL_INSTRUMENTS if include_etfs else NIFTY_500_STOCKS
     print(f"Starting Stock Screener for {len(instruments_to_screen)} instruments (ETFs: {include_etfs})...")
 
     # Upstox API credentials
@@ -70,21 +70,21 @@ def run_live_screener(include_etfs=True):
                     df = df[['Stock', 'Date', 'open', 'high', 'low', 'close', 'volume']]
                     df.columns = ['Stock', 'Date', 'Open', 'High', 'Low', 'Close', 'Volume']
                     all_data.append(df)
-                    print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... OK")
+                    print(f"  [{i+1}/{len(NIFTY_500_STOCKS)}] Fetching {stock}... OK")
                 else:
-                    print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... FAILED (No data)")
+                    print(f"  [{i+1}/{len(NIFTY_500_STOCKS)}] Fetching {stock}... FAILED (No data)")
                     failed_stocks.append(stock)
             else:
-                print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... FAILED (API Error: {response.status_code})")
+                print(f"  [{i+1}/{len(NIFTY_500_STOCKS)}] Fetching {stock}... FAILED (API Error: {response.status_code})")
                 failed_stocks.append(stock)
                 
         except Exception as e:
-            print(f"  [{i+1}/{len(NIFTY_50_STOCKS)}] Fetching {stock}... FAILED (Error: {str(e)[:30]})")
+            print(f"  [{i+1}/{len(NIFTY_500_STOCKS)}] Fetching {stock}... FAILED (Error: {str(e)[:30]})")
             failed_stocks.append(stock)
         
         time.sleep(0.2)  # Rate limiting
 
-    print(f"\nSuccessfully fetched {len(all_data)} stocks out of {len(NIFTY_50_STOCKS)}")
+    print(f"\nSuccessfully fetched {len(all_data)} stocks out of {len(NIFTY_500_STOCKS)}")
 
     if len(all_data) > 0:
         # Combine all data
@@ -107,6 +107,7 @@ def run_live_screener(include_etfs=True):
             'Bollinger_Upper', 'Bollinger_Lower', 'Bollinger_Bandwidth',
             'Donchian_20_High', 'Donchian_20_Low',
             'RVOL20',
+            'TS_Momentum_12M', 'TS_Momentum_3M', 'Momentum_Score', 'Is_Momentum_Stock',
             'TrendContinuation_Flag', 'Breakout_Flag', 'VCP_Flag', 'SEPA_Flag', 'MeanReversion_Flag',
             'Pivot_R1', 'Pivot_S1', 'Supertrend'
         ])
@@ -176,7 +177,32 @@ def run_live_screener(include_etfs=True):
                 else:
                     stock_data['RS_vs_NIFTY'] = np.nan
                     stock_data['RS_ROC20'] = np.nan
-                
+
+                # Momentum calculations for swing trading focus
+                if len(stock_data) >= 252:  # Need at least 1 year of data
+                    # 12-month momentum
+                    stock_data['TS_Momentum_12M'] = (stock_data['Close'] / stock_data['Close'].shift(252) - 1).fillna(0)
+
+                    # 3-month momentum
+                    stock_data['TS_Momentum_3M'] = (stock_data['Close'] / stock_data['Close'].shift(63) - 1).fillna(0)
+
+                    # Momentum score (0-5 scale)
+                    momentum_score = 0
+                    momentum_score += 1 if stock_data['TS_Momentum_12M'].iloc[-1] > 0.1 else 0  # 10%+ 1-year return
+                    momentum_score += 1 if stock_data['TS_Momentum_3M'].iloc[-1] > 0.05 else 0  # 5%+ 3-month return
+                    momentum_score += 1 if stock_data['EMA20'].iloc[-1] > stock_data['EMA50'].iloc[-1] else 0  # Trend alignment
+                    momentum_score += 1 if stock_data['RSI14'].iloc[-1] > 50 else 0  # Bullish RSI
+                    momentum_score += 1 if stock_data['MACD'].iloc[-1] > stock_data['Signal'].iloc[-1] else 0  # MACD bullish
+                    stock_data['Momentum_Score'] = momentum_score
+
+                    # Momentum stock flag (score >= 3)
+                    stock_data['Is_Momentum_Stock'] = 1 if momentum_score >= 3 else 0
+                else:
+                    stock_data['TS_Momentum_12M'] = np.nan
+                    stock_data['TS_Momentum_3M'] = np.nan
+                    stock_data['Momentum_Score'] = 0
+                    stock_data['Is_Momentum_Stock'] = 0
+
                 # Strategy Flags
                 # 1. Trend Continuation / Pullback: EMA20 > EMA50 > EMA200, RSI 45-65, price near EMA20
                 stock_data['TrendContinuation_Flag'] = (
@@ -357,41 +383,42 @@ def run_live_screener(include_etfs=True):
             plt.savefig(f'{stock}_trend_{timestamp}.png')
             print(f"Trend chart for {stock} saved: {stock}_trend_{timestamp}.png")
         
-        # Backtest
-        strategies = {
-            'TrendContinuation': 'TrendContinuation_Flag',
-            'Breakout': 'Breakout_Flag',
-            'VCP': 'VCP_Flag',
-            'SEPA': 'SEPA_Flag',
-            'MeanReversion': 'MeanReversion_Flag'
-        }
-        backtest_results = {}
-        for strat_name, flag_col in strategies.items():
-            returns = []
-            for stock in df_all['Stock'].unique():
-                if stock == 'NIFTY.NS':
-                    continue
-                stock_df = df_processed[df_processed['Stock'] == stock].set_index('Date')
-                entry_dates = stock_df[stock_df[flag_col] == 1].index
-                for entry_date in entry_dates:
-                    exit_date = entry_date + timedelta(days=20)
-                    if exit_date in stock_df.index:
-                        entry_price = stock_df.loc[entry_date, 'Close']
-                        exit_price = stock_df.loc[exit_date, 'Close']
-                        ret = (exit_price - entry_price) / entry_price * 100
-                        returns.append(ret)
-            if returns:
-                win_rate = sum(1 for r in returns if r > 0) / len(returns) * 100
-                avg_return = sum(returns) / len(returns)
-                backtest_results[strat_name] = {'Win_Rate_%': win_rate, 'Avg_Return_%': avg_return, 'Total_Trades': len(returns)}
-            else:
-                backtest_results[strat_name] = {'Win_Rate_%': 0, 'Avg_Return_%': 0, 'Total_Trades': 0}
-        
-        backtest_df = pd.DataFrame(backtest_results).T
-        backtest_df.to_csv(f'backtest_results_{timestamp}.csv')
-        print(f"Backtest results saved: backtest_results_{timestamp}.csv")
-        print("Backtest Summary:")
-        print(backtest_df)
+        # Backtest - Focus on momentum strategies for swing trading
+        # COMMENTED OUT: Backtest functionality requires signal flags that are not currently computed
+        # strategies = {
+        #     'Breakout': 'Breakout_Flag',          # Donchian-style breakouts
+        #     'VCP': 'VCP_Flag',                    # Volume climax patterns
+        #     'SEPA': 'SEPA_Flag',                  # Trend continuation
+        #     'SqueezeBreakout': 'SqueezeBreakout_Flag',  # Volatility breakouts
+        #     'TrendContinuation': 'TrendContinuation_Flag'  # Momentum continuation
+        # }
+        # backtest_results = {}
+        # for strat_name, flag_col in strategies.items():
+        #     returns = []
+        #     for stock in df_all['Stock'].unique():
+        #         if stock == 'NIFTY.NS':
+        #             continue
+        #         stock_df = df_processed[df_processed['Stock'] == stock].set_index('Date')
+        #         entry_dates = stock_df[stock_df[flag_col] == 1].index
+        #         for entry_date in entry_dates:
+        #             exit_date = entry_date + timedelta(days=20)
+        #             if exit_date in stock_df.index:
+        #                 entry_price = stock_df.loc[entry_date, 'Close']
+        #                 exit_price = stock_df.loc[exit_date, 'Close']
+        #                 ret = (exit_price - entry_price) / entry_price * 100
+        #                 returns.append(ret)
+        #     if returns:
+        #         win_rate = sum(1 for r in returns if r > 0) / len(returns) * 100
+        #         avg_return = sum(returns) / len(returns)
+        #         backtest_results[strat_name] = {'Win_Rate_%': win_rate, 'Avg_Return_%': avg_return, 'Total_Trades': len(returns)}
+        #     else:
+        #         backtest_results[strat_name] = {'Win_Rate_%': 0, 'Avg_Return_%': 0, 'Total_Trades': 0}
+        #
+        # backtest_df = pd.DataFrame(backtest_results).T
+        # backtest_df.to_csv(f'backtest_results_{timestamp}.csv')
+        # print(f"Backtest results saved: backtest_results_{timestamp}.csv")
+        # print("Backtest Summary:")
+        # print(backtest_df)
 
     else:
         print("✗ Failed to fetch data for any stocks. Please check your internet connection.")

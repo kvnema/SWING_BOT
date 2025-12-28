@@ -113,7 +113,7 @@ def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
 
     # TS_Momentum: 12-month lookback, monthly rebalance
     d['TS_Momentum'] = (d['Close'] / d['Close'].shift(252) - 1).fillna(0)  # approx 252 trading days
-    d['TS_Momentum_Flag'] = (d['TS_Momentum'] > 0).astype(int)  # simple positive momentum
+    d['TS_Momentum_Flag'] = (d['TS_Momentum'] > -0.10).astype(int)  # Relaxed: allow stocks down up to -10% (allows base-building setups)
 
     # RSI/MACD confirmation pack (per TF)
     d['RSIConfirm_D'] = d['RSI_Above50'] & ~d['RSI_Overbought']
@@ -132,6 +132,13 @@ def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
     if 'IndexUpRegime' in d.columns:
         for f in long_flags:
             d.loc[d['IndexUpRegime'] != 1, f] = 0
+
+    # Momentum stock filter for swing trading focus
+    # Only allow signals on stocks with positive momentum
+    momentum_flags = ['SEPA_Flag', 'VCP_Flag', 'Donchian_Breakout', 'BBKC_Squeeze_Flag', 'SqueezeBreakout_Flag']
+    for f in momentum_flags:
+        if f in d.columns:
+            d.loc[d['TS_Momentum_Flag'] != 1, f] = 0
 
     # Add RSI status
     d['RSI14_Status'] = rsi_status(d['RSI14'])

@@ -24,6 +24,13 @@ def test_build_final_excel(tmp_path):
         'GoldenBear_Flag': [0, 0],
         'GoldenBull_Date': ['', '2025-12-15'],
         'GoldenBear_Date': ['', ''],
+        'AVWAP60': [1500.0, 4100.0],
+        'EMA20': [1520.0, 4180.0],
+        'EMA50': [1490.0, 4080.0],
+        'Close': [1525.0, 4205.0],
+        'Entry_Logic': ['Pullback Entry: Below EMA20 1520.0', 'Breakout Entry: Above breakout level with momentum'],
+        'Stop_Logic': ['EMA50-based stop: ₹1490.00', 'EMA50-based stop: ₹4080.00'],
+        'Target_Logic': ['2R target from entry', '2R target from entry'],
         'Notes': ['MR dip near EMA20', 'RVOL=1.8; Donchian breakout'],
         'Explanation': ['Selected via MR strategy. RSI: 45.0 (Neutral). No Golden Crossover. ATR×1.5=18.75 for stoploss. Strategy template: MR dip near EMA20.', 'Selected via Donchian strategy. RSI: 55.0 (Neutral). Golden Bull on 2025-12-15. ATR×1.5=37.5 for stoploss. Strategy template: RVOL=1.8; Donchian breakout.'],
         'DecisionConfidence': [0.65, 0.72],
@@ -49,7 +56,7 @@ def test_build_final_excel(tmp_path):
     
     # Read back and check columns
     df_read = pd.read_excel(out_xlsx, sheet_name='GTT-Delivery-Plan', header=1)
-    expected_cols = ['Symbol', 'Qty', 'ENTRY_trigger_price', 'TARGET_trigger_price', 'STOPLOSS_trigger_price', 'DecisionConfidence', 'Confidence_Level', 'R', 'Explanation', 'GTT_Explanation', 'RSI14', 'RSI_Above50', 'RSI_Overbought', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'MACD_CrossUp', 'MACD_AboveZero', 'RSI_MACD_Confirmations_OK', 'RSI_MACD_Notes', 'Audit_Flag', 'Issues', 'Fix_Suggestion', 'Pivot_Source', 'Entry_Logic', 'Stop_Logic', 'Target_Logic', 'Latest_Close', 'Latest_LTP', 'Canonical_Entry', 'Canonical_Stop', 'Canonical_Target']
+    expected_cols = ['Symbol', 'Strategy', 'Qty', 'ENTRY_trigger_price', 'TARGET_trigger_price', 'STOPLOSS_trigger_price', 'DecisionConfidence', 'Confidence_Level', 'R', 'Explanation', 'GTT_Explanation', 'AVWAP60', 'EMA20', 'EMA50', 'Close', 'Entry_Logic', 'Stop_Logic', 'Target_Logic', 'RSI14_D', 'RSI_Above50_D', 'RSI_Overbought_D', 'MACD_Line_D', 'MACD_Signal_D', 'MACD_Hist_D', 'MACD_CrossUp_D', 'MACD_AboveZero_D', 'RSI14_H4', 'RSI_Above50_H4', 'MACD_CrossUp_H4', 'RSI_MACD_Confirmations_OK', 'RSI_MACD_Notes', 'Audit_Flag', 'Issues', 'Fix_Suggestion', 'Pivot_Source', 'Latest_Close', 'Latest_LTP', 'Canonical_Entry', 'Canonical_Stop', 'Canonical_Target']
     assert list(df_read.columns) == expected_cols
     # Check data rows (ignore footer)
     data_rows = df_read.dropna(subset=['ENTRY_trigger_price'])

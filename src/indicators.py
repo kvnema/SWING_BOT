@@ -6,6 +6,9 @@ AVWAP (moving), RS_ROC, and simple breadth/regime helpers.
 from typing import Tuple, Optional
 import pandas as pd
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def atr(df: pd.DataFrame, period: int = 14, price_high='High', price_low='Low', price_close='Close') -> pd.Series:
@@ -85,6 +88,36 @@ def macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> T
     signal_line = macd_line.ewm(span=signal, adjust=False).mean()
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
+
+
+def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Average Directional Index (ADX) calculation."""
+    high = df['High']
+    low = df['Low']
+    close = df['Close']
+
+    # True Range
+    tr1 = high - low
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    # Directional Movement
+    dm_plus = pd.Series(np.where((high - high.shift(1)) > (low.shift(1) - low),
+                                np.maximum(high - high.shift(1), 0), 0), index=df.index)
+    dm_minus = pd.Series(np.where((low.shift(1) - low) > (high - high.shift(1)),
+                                 np.maximum(low.shift(1) - low, 0), 0), index=df.index)
+
+    # Smoothed averages
+    atr = tr.rolling(period).mean()
+    di_plus = 100 * (dm_plus.rolling(period).mean() / atr)
+    di_minus = 100 * (dm_minus.rolling(period).mean() / atr)
+
+    # ADX
+    dx = 100 * abs(di_plus - di_minus) / (di_plus + di_minus)
+    adx = dx.rolling(period).mean()
+
+    return adx
 
 
 def compute_rsi_macd_gates(df: pd.DataFrame) -> pd.DataFrame:
@@ -295,7 +328,38 @@ def compute_all_indicators(df: pd.DataFrame, benchmark_df: Optional[pd.DataFrame
     d['EMA20'] = d['Close'].ewm(span=20, adjust=False).mean()
     d['EMA50'] = d['Close'].ewm(span=50, adjust=False).mean()
     d['EMA200'] = d['Close'].ewm(span=200, adjust=False).mean()
-    d['IndexUpRegime'] = (d['Close'] > d['EMA50']).astype(int)
+    d['SMA200'] = d['Close'].rolling(200).mean()
+
+    # ADX for trend strength
+    d['ADX14'] = adx(d, 14)
+
+    # STRONG MARKET REGIME FILTER (Mandatory for safety)
+    # Only allow long entries when BOTH conditions met:
+    # 1. Index > EMA200/SMA200 (major trend up)
+    # 2. ADX > 20 (confirmed trending environment, not sideways)
+    # Use comprehensive market data for accurate calculation
+    try:
+        from .data_fetch import calculate_market_regime
+        regime_data = calculate_market_regime('NSE_INDEX|Nifty 50', 400)
+
+        if regime_data['regime_status'] == 'ON':
+            d['IndexUpRegime'] = 1
+            logger.info("Market regime ON: Trading allowed")
+        else:
+            d['IndexUpRegime'] = 0
+            logger.info(f"Market regime OFF: Holding cash. Reason: {regime_data.get('reason', 'Conditions not met')}")
+
+        # Store regime data for reference
+        d['Regime_Status'] = regime_data['regime_status']
+        d['Regime_ADX'] = regime_data.get('adx14', 0)
+        d['Regime_SMA200'] = regime_data.get('sma200', 0)
+
+    except Exception as e:
+        logger.warning(f"Failed to calculate market regime: {e}. Defaulting to OFF for safety.")
+        d['IndexUpRegime'] = 0  # Default to OFF for safety
+        d['Regime_Status'] = 'ERROR'
+        d['Regime_ADX'] = 0
+        d['Regime_SMA200'] = 0
 
     # Enhanced indicators
     d = compute_volatility_indicators(d)

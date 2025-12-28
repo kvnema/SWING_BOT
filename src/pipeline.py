@@ -16,6 +16,7 @@ from .indicators import compute_all_indicators
 from .patterns import detect_weekly_patterns
 from .anchors import get_event_anchors, compute_event_anchored_avwap
 from .regime import get_composite_regime
+from .momentum_filter import filter_momentum_stocks
 from .strategies.donchian import signal as donchian_signal
 from .strategies.squeeze import signal as squeeze_signal
 from .strategies.avwap import signal as avwap_signal
@@ -137,6 +138,40 @@ class SWINGPipeline:
             return pd.concat(indicator_frames, ignore_index=True)
         else:
             return pd.DataFrame()
+
+    def apply_momentum_filter(self, indicators_df: pd.DataFrame,
+                            benchmark_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+        """
+        Apply momentum filter to focus on momentum stocks for swing trading
+
+        Args:
+            indicators_df: DataFrame with indicators
+            benchmark_df: Benchmark data for RS calculations
+
+        Returns:
+            Filtered DataFrame with momentum stocks only
+        """
+        self.logger.info("Applying momentum filter for swing trading focus")
+
+        if indicators_df.empty:
+            self.logger.warning("No indicator data to filter")
+            return indicators_df
+
+        # Apply momentum filtering
+        momentum_df = filter_momentum_stocks(
+            indicators_df,
+            benchmark_df,
+            min_momentum_period=252,  # 1 year
+            min_rs_rank=0.7,  # Top 30% RS
+            require_volume=True
+        )
+
+        momentum_stocks = len(momentum_df['Symbol'].unique()) if not momentum_df.empty else 0
+        total_stocks = len(indicators_df['Symbol'].unique())
+
+        self.logger.info(f"Momentum filter: {momentum_stocks} out of {total_stocks} stocks passed momentum criteria")
+
+        return momentum_df
 
     def generate_strategy_signals(self, indicators_df: pd.DataFrame,
                                 benchmark_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
@@ -404,8 +439,13 @@ class SWINGPipeline:
             indicators_df = self.compute_indicators(stocks_df, index_df)
             results['indicators_status'] = 'success' if not indicators_df.empty else 'failed'
 
+            # 2.5. Apply momentum filter for swing trading focus
+            momentum_df = self.apply_momentum_filter(indicators_df, index_df)
+            results['momentum_filter_status'] = 'success' if not momentum_df.empty else 'failed'
+            results['momentum_stocks_count'] = len(momentum_df['Symbol'].unique()) if not momentum_df.empty else 0
+
             # 3. Generate strategy signals
-            signals_df = self.generate_strategy_signals(indicators_df, index_df)
+            signals_df = self.generate_strategy_signals(momentum_df, index_df)
             results['signals_status'] = 'success'
 
             # 4. Apply regime filter

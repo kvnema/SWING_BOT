@@ -117,3 +117,21 @@ metrics:
 dashboard:
   enabled: true
   out_html: outputs/dashboard/index.html
+
+broker:
+  default: upstox  # Can be 'upstox' or 'icici'
+  upstox:
+    enabled: true
+    api_key: ${UPSTOX_API_KEY}
+    api_secret: ${UPSTOX_API_SECRET}
+    access_token: ${UPSTOX_ACCESS_TOKEN}
+    gtt:
+      allow_sell_without_edis: false
+  icici:
+    enabled: true
+    api_key: ${ICICI_API_KEY}
+    api_secret: ${ICICI_API_SECRET}
+    session_token: ${ICICI_SESSION_TOKEN}
+    gtt:
+      default_product: options
+      default_exchange: NFO

@@ -137,6 +137,13 @@ def get_gtt_order(access_token: str, gtt_id: str) -> Dict:
     return {'status_code': resp.status_code, 'body': resp.json() if resp.content else {}}
 
 
+def get_all_gtt_orders(access_token: str) -> Dict:
+    """Get all GTT orders."""
+    url = BASE + '/order/gtt'
+    resp = requests.get(url, headers=_headers(access_token))
+    return {'status_code': resp.status_code, 'body': resp.json() if resp.content else {}}
+
+
 def modify_gtt_order(access_token: str, payload: Dict[str, Any]) -> Dict:
     url = BASE + '/order/gtt/modify'
     resp = requests.post(url, json=payload, headers=_headers(access_token))
@@ -201,7 +208,11 @@ def place_gtt_order_multi(instrument_token: str, quantity: int, product: str, ru
             logger.info('Multi-leg GTT attempt %d status=%s symbol_token=%s', attempt, status, instrument_token)
 
             if status in (200, 201, 202):
-                order_id = body.get('order_id', 'UNKNOWN')
+                # Extract order ID from response - could be order_id or gtt_order_ids[0]
+                order_id = body.get('order_id')
+                if not order_id:
+                    gtt_order_ids = body.get('data', {}).get('gtt_order_ids', [])
+                    order_id = gtt_order_ids[0] if gtt_order_ids else 'UNKNOWN'
                 return {'status_code': status, 'body': body, 'order_id': order_id}
 
             # Handle duplicate GTT - try modify instead

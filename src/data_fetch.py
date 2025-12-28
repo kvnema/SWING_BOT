@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Import centralized configuration
 from .config import (
-    API_KEY, API_SECRET, ACCESS_TOKEN, INSTRUMENT_KEYS, NIFTY_50_STOCKS,
+    API_KEY, API_SECRET, ACCESS_TOKEN, INSTRUMENT_KEYS, NIFTY_500_STOCKS,
     NSE_ETFS, ALL_INSTRUMENTS, API_RATE_LIMIT_DELAY, MAX_RETRIES,
     RETRY_BACKOFF_FACTOR, MIN_DATA_POINTS, DEFAULT_LOOKBACK_DAYS
 )
@@ -110,7 +110,7 @@ def _make_api_request(url: str, headers: Dict[str, str], max_retries: int = MAX_
 
     return None
 
-def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str]) -> Tuple[str, Optional[pd.DataFrame], str]:
+def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str], broker: str = 'upstox') -> Tuple[str, Optional[pd.DataFrame], str]:
     """Fetch data for a single instrument with error handling."""
     try:
         logger.info(f"Fetching {symbol}...")
@@ -122,17 +122,59 @@ def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str]) -> 
         clean_symbol = symbol.replace('.NS', '')
         instrument_key = INSTRUMENT_KEYS.get(clean_symbol, clean_symbol)
 
-        url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}/{start_date.strftime('%Y-%m-%d')}"
+        if broker.lower() == 'upstox':
+            url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}/{start_date.strftime('%Y-%m-%d')}"
 
-        data = _make_api_request(url, headers)
-        if not data:
-            return symbol, None, "API_ERROR"
+            data = _make_api_request(url, headers)
+            if not data:
+                return symbol, None, "API_ERROR"
 
-        candles = data.get('data', {}).get('candles', [])
-        if not candles:
-            return symbol, None, "NO_DATA"
+            candles = data.get('data', {}).get('candles', [])
+            if not candles:
+                return symbol, None, "NO_DATA"
 
-        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+            df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+            
+        elif broker.lower() == 'icici':
+            from .icici_api import ICICIDirectAPI
+            try:
+                api = ICICIDirectAPI()
+                if not api.access_token:
+                    # Fallback to Upstox
+                    url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}/{start_date.strftime('%Y-%m-%d')}"
+                    data = _make_api_request(url, headers)
+                    if not data:
+                        return symbol, None, "API_ERROR"
+                    candles = data.get('data', {}).get('candles', [])
+                    if not candles:
+                        return symbol, None, "NO_DATA"
+                    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+                else:
+                    # ICICI API expects different format
+                    candles = api.get_historical_data(instrument_key, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                    if not candles:
+                        return symbol, None, "NO_DATA"
+                    df = pd.DataFrame(candles)
+                    # ICICI returns different column names, normalize them
+                    if 'datetime' in df.columns:
+                        df = df.rename(columns={'datetime': 'timestamp'})
+                    if 'vol' in df.columns:
+                        df = df.rename(columns={'vol': 'volume'})
+            except Exception as e:
+                logger.warning(f"ICICI API failed for {symbol}: {e}, falling back to Upstox")
+                # Fallback to Upstox
+                url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}/{start_date.strftime('%Y-%m-%d')}"
+                data = _make_api_request(url, headers)
+                if not data:
+                    return symbol, None, "API_ERROR"
+                candles = data.get('data', {}).get('candles', [])
+                if not candles:
+                    return symbol, None, "NO_DATA"
+                df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+                
+        else:
+            return symbol, None, f"UNSUPPORTED_BROKER: {broker}"
+
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df['Date'] = df['timestamp'].dt.date
         df['Symbol'] = clean_symbol
@@ -145,7 +187,7 @@ def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str]) -> 
         logger.error(f"Error fetching {symbol}: {str(e)}")
         return symbol, None, f"ERROR: {str(e)}"
 
-def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/nifty50_indicators_renamed.csv', include_etfs: bool = True, max_workers: int = 8) -> None:
+def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/nifty50_indicators_renamed.csv', include_etfs: bool = True, max_workers: int = 8, broker: str = 'upstox') -> None:
     """
     Optimized data fetching with parallel processing, caching, and error handling.
 
@@ -154,16 +196,41 @@ def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/
         out_path: Output path for processed data
         include_etfs: Whether to include ETFs in the fetch
         max_workers: Maximum number of parallel threads
+        broker: Broker to use ('upstox' or 'icici')
     """
     logger.info("Starting optimized NSE data fetch and processing...")
 
-    if not ACCESS_TOKEN:
-        raise ValueError("UPSTOX_ACCESS_TOKEN not set in .env")
-
-    headers = {
-        'Authorization': f'Bearer {ACCESS_TOKEN}',
-        'Accept': 'application/json'
-    }
+    if broker.lower() == 'upstox':
+        if not ACCESS_TOKEN:
+            raise ValueError("UPSTOX_ACCESS_TOKEN not set in .env")
+        headers = {
+            'Authorization': f'Bearer {ACCESS_TOKEN}',
+            'Accept': 'application/json'
+        }
+    elif broker.lower() == 'icici':
+        from .icici_api import ICICIDirectAPI
+        try:
+            api = ICICIDirectAPI()
+            # Test if tokens are available
+            if not api.access_token:
+                logger.warning("ICICI_ACCESS_TOKEN not available, falling back to Upstox for data fetching")
+                broker = 'upstox'  # Fallback
+                headers = {
+                    'Authorization': f'Bearer {ACCESS_TOKEN}',
+                    'Accept': 'application/json'
+                }
+            else:
+                # ICICI doesn't use headers for historical data, uses direct API calls
+                headers = None
+        except Exception as e:
+            logger.warning(f"ICICI API initialization failed: {e}, falling back to Upstox")
+            broker = 'upstox'  # Fallback
+            headers = {
+                'Authorization': f'Bearer {ACCESS_TOKEN}',
+                'Accept': 'application/json'
+            }
+    else:
+        raise ValueError(f"Unsupported broker: {broker}")
 
     # Load instrument keys dynamically
     global INSTRUMENT_KEYS
@@ -187,7 +254,7 @@ def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_symbol = {
-            executor.submit(fetch_single_instrument, symbol, days, headers): symbol
+            executor.submit(fetch_single_instrument, symbol, days, headers, broker): symbol
             for symbol in instruments_to_fetch
         }
 
@@ -262,9 +329,17 @@ def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/
         df_processed = pd.concat(processed_frames, ignore_index=True)
         df_processed = df_processed.sort_values(['Symbol', 'Date']).reset_index(drop=True)
 
+        # Determine output path
+        if '.' in os.path.basename(out_path):
+            # out_path is a file path
+            output_path = out_path
+        else:
+            # out_path is a directory
+            output_path = os.path.join(out_path, 'nifty50_data_today.csv')
+
         # Save data in appropriate format
-        save_dataset(df_processed, out_path)
-        logger.info(f"✓ Processed data saved to {out_path}")
+        save_dataset(df_processed, output_path)
+        logger.info(f"✓ Processed data saved to {output_path}")
         logger.info(f"✓ Total records: {len(df_processed):,}")
         logger.info(f"✓ Symbols processed: {symbols_processed}")
     else:
@@ -355,7 +430,7 @@ def fetch_live_quotes() -> pd.DataFrame:
     Returns:
         DataFrame with columns: Symbol, Open, High, Low, Close, Volume, InstrumentToken
     """
-    from .config import NIFTY_50_STOCKS, INSTRUMENT_KEYS
+    from .config import NIFTY_500_STOCKS, INSTRUMENT_KEYS
     from .ltp_reconcile import fetch_live_quotes as _fetch_ltp_quotes
     import os
     
@@ -369,7 +444,7 @@ def fetch_live_quotes() -> pd.DataFrame:
     instrument_tokens = []
     symbol_map = {}  # token -> symbol mapping
     
-    for symbol in NIFTY_50_STOCKS:
+    for symbol in NIFTY_500_STOCKS:
         # Remove .NS suffix for lookup
         clean_symbol = symbol.replace('.NS', '')
         token = INSTRUMENT_KEYS.get(clean_symbol)
@@ -511,6 +586,183 @@ def fetch_all_timeframes(symbols: List[str], timeframes: List[str], start_date: 
             print(f"❌ {tf}: No data fetched")
     
     return results
+
+
+def fetch_market_index_data(symbol: str = 'NIFTYBEES.NS', days: int = 400, broker: str = 'upstox') -> pd.DataFrame:
+    """
+    Fetch market index data with sufficient history for regime calculation.
+    Ensures we have enough data for SMA200 and ADX calculations.
+
+    Args:
+        symbol: Market index symbol (default: NIFTYBEES.NS as proxy)
+        days: Number of days of historical data to fetch (default: 400 for buffer)
+        broker: Broker to use ('upstox' or 'icici')
+
+    Returns:
+        DataFrame with OHLCV data and calculated regime indicators
+    """
+    logger.info(f"Fetching {days} days of {symbol} data for regime calculation...")
+
+    if broker.lower() == 'upstox':
+        if not ACCESS_TOKEN:
+            raise ValueError("UPSTOX_ACCESS_TOKEN not set in .env")
+        headers = {
+            'Authorization': f'Bearer {ACCESS_TOKEN}',
+            'Accept': 'application/json'
+        }
+    else:
+        raise ValueError(f"Unsupported broker for index data: {broker}")
+
+    # Get instrument key
+    instrument_key = INSTRUMENT_KEYS.get(symbol.replace('.NS', ''), symbol)
+    if instrument_key == symbol and '.NS' in symbol:
+        # Try without .NS suffix
+        instrument_key = INSTRUMENT_KEYS.get(symbol.replace('.NS', ''), None)
+        if not instrument_key:
+            raise ValueError(f"Instrument key not found for {symbol}")
+
+    # Calculate date range
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days)
+
+    # Fetch data from Upstox API - try daily data first, fallback to minute data
+    # Try daily endpoint first
+    url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}"
+    params = {
+        'from_date': start_date.strftime('%Y-%m-%d'),
+        'to_date': end_date.strftime('%Y-%m-%d')
+    }
+
+    logger.info(f"Fetching data from {start_date.date()} to {end_date.date()}")
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+        if 'data' not in data or not data['data']:
+            logger.warning(f"No daily data returned for {symbol}, trying minute data")
+            # Fallback to minute data
+            url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/1minute/{end_date.strftime('%Y-%m-%d')}"
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            if 'data' not in data or not data['data']:
+                logger.warning(f"No data returned for {symbol}")
+                return pd.DataFrame()
+
+        # Convert to DataFrame
+        candles = data['data']['candles']
+        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'unknown'])
+
+        # Process timestamps
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.set_index('timestamp')
+
+        # For daily data, we don't need to resample, just ensure we have daily format
+        daily_df = df[['open', 'high', 'low', 'close', 'volume']].copy()
+
+        # Reset index and add symbol column
+        daily_df = daily_df.reset_index()
+        daily_df['Symbol'] = symbol
+        daily_df = daily_df.rename(columns={'timestamp': 'Date'})
+
+        # Convert column names to match indicator expectations (uppercase OHLC)
+        daily_df = daily_df.rename(columns={
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
+
+        # Sort by date
+        daily_df = daily_df.sort_values('Date')
+
+        logger.info(f"Successfully fetched {len(daily_df)} days of {symbol} data")
+
+        return daily_df
+
+    except Exception as e:
+        logger.error(f"Failed to fetch {symbol} data: {e}")
+        return pd.DataFrame()
+
+
+def calculate_market_regime(symbol: str = 'NIFTYBEES.NS', days: int = 400, broker: str = 'upstox') -> Dict:
+    """
+    Calculate market regime status using comprehensive historical data.
+
+    Returns:
+        Dict with regime status and supporting data
+    """
+    logger.info(f"Calculating market regime for {symbol}...")
+
+    # Fetch sufficient historical data
+    df = fetch_market_index_data(symbol, days, broker)
+
+    if df.empty or len(df) < 200:
+        logger.warning(f"Insufficient data for regime calculation: {len(df)} days")
+        return {
+            'regime_status': 'OFF',
+            'reason': 'Insufficient data (<200 days)',
+            'data_points': len(df) if not df.empty else 0,
+            'latest_close': None,
+            'sma200': None,
+            'adx14': None
+        }
+
+    # Calculate regime indicators
+    from .indicators import adx
+
+    # Ensure we have the required columns
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+
+    # Calculate SMA200
+    df['SMA200'] = df['Close'].rolling(200).mean()
+
+    # Calculate ADX
+    df['ADX14'] = adx(df, 14)
+
+    # Calculate RSI for alternative regime condition
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI14'] = 100 - (100 / (1 + rs))
+
+    # Get latest values
+    latest = df.iloc[-1]
+    latest_close = latest['Close']
+    sma200 = latest['SMA200']
+    adx14 = latest['ADX14']
+    rsi14 = latest['RSI14']
+
+    # Determine regime status
+    above_sma200 = latest_close > sma200 if not pd.isna(sma200) else False
+    adx_above_20 = adx14 > 20 if not pd.isna(adx14) else False
+    rsi_above_50 = rsi14 > 50 if not pd.isna(rsi14) else False
+
+    # Regime ON if: (above SMA200 AND ADX > 20) OR (above SMA200 AND RSI > 50)
+    regime_on = above_sma200 and (adx_above_20 or rsi_above_50)
+
+    result = {
+        'regime_status': 'ON' if regime_on else 'OFF',
+        'latest_close': round(latest_close, 2),
+        'sma200': round(sma200, 2) if not pd.isna(sma200) else None,
+        'adx14': round(adx14, 2) if not pd.isna(adx14) else None,
+        'rsi14': round(rsi14, 2) if not pd.isna(rsi14) else None,
+        'above_sma200': above_sma200,
+        'adx_above_20': adx_above_20,
+        'rsi_above_50': rsi_above_50,
+        'regime_condition': 'ADX' if adx_above_20 else ('RSI' if rsi_above_50 else 'NONE'),
+        'data_points': len(df),
+        'date_range': f"{df['Date'].min().date()} to {df['Date'].max().date()}",
+        'symbol': symbol
+    }
+
+    logger.info(f"Regime calculation complete: {result['regime_status']}")
+    return result
 
 
 if __name__ == "__main__":
