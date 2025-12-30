@@ -64,6 +64,10 @@ data/*.parquet
 data/api_cache.json
 data/token_*.json
 
+# Large indicator files
+*nifty50_indicators_full.csv
+*indicators_full.csv
+
 # Output files
 outputs/
 artifacts/
