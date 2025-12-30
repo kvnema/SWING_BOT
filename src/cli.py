@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import json
 import os
+import sys
 import pandas as pd
 import logging
 from datetime import datetime
@@ -25,6 +26,8 @@ from .data_validation import (
 from .plan_audit import AuditParams, run_plan_audit
 from .multi_tf_excel import build_multi_tf_excel
 from .ltp_reconcile import reconcile_plan
+from .auto_test import run_daily_auto_test
+from .self_optimize import run_daily_self_optimization
 
 
 def update_historical_with_live(historical_df: pd.DataFrame, live_quotes_df: pd.DataFrame) -> pd.DataFrame:
@@ -1104,6 +1107,22 @@ def cmd_orchestrate_eod(args):
             metrics_exporter.record_audit_metrics(pass_count, fail_count)
             print("✅ Metrics recorded")
 
+        # 12. Daily Auto-Testing (optional, for self-improving mode)
+        print("🧪 Step 12: Run daily auto-testing...")
+        try:
+            auto_test_result = run_daily_auto_test(config_path=args.config or 'config.yaml')
+            print("✅ Auto-testing completed")
+        except Exception as e:
+            print(f"⚠️  Auto-testing failed (non-critical): {str(e)}")
+
+        # 13. Self-Optimization (optional, for self-improving mode)
+        print("🔧 Step 13: Run self-optimization...")
+        try:
+            optimize_result = run_daily_self_optimization(config_path=args.config or 'config.yaml')
+            print("✅ Self-optimization completed")
+        except Exception as e:
+            print(f"⚠️  Self-optimization failed (non-critical): {str(e)}")
+
         # Final summary
         print("\n" + "="*60)
         print("🎉 SWING_BOT EOD Orchestration Complete!")
@@ -1713,6 +1732,35 @@ def cmd_metrics_exporter(args):
         sys.exit(1)
 
 
+def cmd_auto_test(args):
+    """Run daily automated performance testing."""
+    try:
+        result = run_daily_auto_test(
+            symbol=getattr(args, 'symbol', 'RELIANCE.NS'),
+            config_path=args.config
+        )
+        print("✅ Auto-test completed successfully")
+        print(json.dumps(result, indent=2))
+    except Exception as e:
+        print(f"❌ Auto-test failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_self_optimize(args):
+    """Run daily self-optimization of strategy parameters."""
+    try:
+        result = run_daily_self_optimization(config_path=args.config)
+        print("✅ Self-optimization completed successfully")
+        print(json.dumps(result, indent=2))
+    except Exception as e:
+        print(f"❌ Self-optimization failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser('nifty-gtt-swing')
     sub = parser.add_subparsers(dest='cmd')
@@ -1913,6 +1961,15 @@ def main():
     p.add_argument('--notify-telegram', action='store_true', help='Send Telegram notification')
     p.add_argument('--force-refresh', action='store_true', help='Force data refresh even if recent')
     p.set_defaults(func=cmd_hourly_update)
+
+    p = sub.add_parser('auto-test', help='Run daily automated performance testing')
+    p.add_argument('--symbol', default='RELIANCE.NS', help='Symbol to test on')
+    p.add_argument('--config', default='config.yaml', help='Path to config.yaml')
+    p.set_defaults(func=cmd_auto_test)
+
+    p = sub.add_parser('self-optimize', help='Run daily self-optimization of strategy parameters')
+    p.add_argument('--config', default='config.yaml', help='Path to config.yaml')
+    p.set_defaults(func=cmd_self_optimize)
 
     args = parser.parse_args()
     if not hasattr(args, 'func'):

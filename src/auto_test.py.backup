@@ -1,0 +1,227 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+from pathlib import Path
+import json
+import logging
+from typing import Dict, List, Optional
+
+from .backtest import backtest_strategy, walk_forward_backtest
+from .data_fetch import fetch_nifty50_data
+from .data_io import load_dataset
+from .signals import compute_signals
+from .utils import load_config
+
+
+logger = logging.getLogger(__name__)
+
+
+def send_notification(message: str, title: str = "SWING_BOT Notification"):
+    """Simple notification function for self-improvement alerts."""
+    logger.info(f"{title}: {message}")
+    # TODO: Integrate with actual notification system
+    return True
+
+
+class AutoTester:
+    """Automated daily testing pipeline for SWING_BOT performance monitoring."""
+
+    def __init__(self, config_path: str = 'config.yaml', output_dir: str = 'outputs/auto_test'):
+        self.cfg = load_config(config_path)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Test parameters
+        self.test_window_months = 3  # Rolling window for backtesting
+        self.benchmark_symbol = 'NIFTY50'  # For comparison
+
+        # Load previous results for comparison
+        self.history_file = self.output_dir / 'test_history.json'
+        self.load_history()
+
+    def load_history(self):
+        """Load previous test results for comparison."""
+        if self.history_file.exists():
+            with open(self.history_file, 'r') as f:
+                self.history = json.load(f)
+        else:
+            self.history = []
+
+    def save_history(self):
+        """Save test results to history."""
+        with open(self.history_file, 'w') as f:
+            json.dump(self.history, f, indent=2, default=str)
+
+    def fetch_latest_data(self) -> pd.DataFrame:
+        """Fetch latest EOD data via Upstox API with CSV fallback."""
+        try:
+            logger.info("Fetching latest data via Upstox API...")
+            df = fetch_nifty50_data()
+            if df.empty:
+                raise ValueError("No data from API")
+            return df
+        except Exception as e:
+            logger.warning(f"API fetch failed: {e}. Using CSV fallback...")
+            # Fallback to existing CSV data
+            csv_path = Path('data/nifty50_data_today.csv')
+            if csv_path.exists():
+                return load_dataset(str(csv_path))
+            else:
+                raise ValueError("No data available from API or CSV")
+
+    def prepare_test_data(self, df: pd.DataFrame, symbol: str = 'RELIANCE.NS') -> pd.DataFrame:
+        """Prepare data for testing on specific symbol with rolling window."""
+        # Filter to symbol
+        symbol_df = df[df['Symbol'] == symbol].copy()
+        if symbol_df.empty:
+            raise ValueError(f"No data for symbol {symbol}")
+
+        # Sort by date
+        symbol_df['Date'] = pd.to_datetime(symbol_df['Date'])
+        symbol_df = symbol_df.sort_values('Date')
+
+        # Get rolling window (last N months)
+        end_date = symbol_df['Date'].max()
+        start_date = end_date - pd.DateOffset(months=self.test_window_months)
+
+        test_df = symbol_df[symbol_df['Date'] >= start_date].copy()
+        if len(test_df) < 50:  # Minimum bars for meaningful test
+            raise ValueError(f"Insufficient data for {symbol}: {len(test_df)} bars")
+
+        # Compute signals
+        test_df = compute_signals(test_df)
+
+        return test_df
+
+    def run_daily_test(self, symbol: str = 'RELIANCE.NS') -> Dict:
+        """Run daily performance test on rolling window."""
+        logger.info(f"Running daily test for {symbol}...")
+
+        # Fetch and prepare data
+        df = self.fetch_latest_data()
+        test_df = self.prepare_test_data(df, symbol)
+
+        # Run backtest with current parameters
+        strategies = {
+            'VCP': 'VCP_Flag',
+            'SEPA': 'SEPA_Flag',
+            'Squeeze': 'Squeeze_Flag',
+            'Donchian': 'Donchian_Flag',
+            'MR': 'MR_Flag',
+            'AVWAP': 'AVWAP_Flag'
+        }
+
+        results = {}
+        for strategy_name, flag_col in strategies.items():
+            if flag_col in test_df.columns:
+                result = backtest_strategy(test_df, flag_col, self.cfg,
+                                         confirm_rsi=True, confirm_macd=True, confirm_hist=True)
+                results[strategy_name] = result['kpi']
+
+        # Compute regime hit rate
+        regime_hits = test_df['Regime_Filter'].sum() if 'Regime_Filter' in test_df.columns else 0
+        total_bars = len(test_df)
+        regime_hit_rate = (regime_hits / total_bars * 100) if total_bars > 0 else 0
+
+        # Aggregate results
+        test_date = datetime.now().date()
+        test_result = {
+            'date': str(test_date),
+            'symbol': symbol,
+            'window_days': len(test_df),
+            'regime_hit_rate': round(regime_hit_rate, 2),
+            'strategies': results,
+            'best_strategy': max(results.items(), key=lambda x: x[1].get('Sharpe', 0))[0] if results else None
+        }
+
+        # Compare to previous
+        if self.history:
+            prev_result = self.history[-1]
+            test_result['comparison'] = self.compare_results(test_result, prev_result)
+
+        # Save to history
+        self.history.append(test_result)
+        self.save_history()
+
+        # Log results
+        self.log_test_results(test_result)
+
+        return test_result
+
+    def compare_results(self, current: Dict, previous: Dict) -> Dict:
+        """Compare current results to previous run."""
+        comparison = {}
+
+        # Compare key metrics for best strategy
+        curr_best = current['strategies'].get(current.get('best_strategy', ''), {})
+        prev_best = previous['strategies'].get(previous.get('best_strategy', ''), {})
+
+        metrics = ['Sharpe', 'Win_Rate_%', 'MaxDD', 'TotalReturn']
+        for metric in metrics:
+            curr_val = curr_best.get(metric, 0)
+            prev_val = prev_best.get(metric, 0)
+            change = curr_val - prev_val
+            pct_change = (change / abs(prev_val)) * 100 if prev_val != 0 else 0
+            comparison[metric] = {
+                'current': curr_val,
+                'previous': prev_val,
+                'change': round(change, 4),
+                'pct_change': round(pct_change, 2)
+            }
+
+        # Regime filter comparison
+        curr_regime = current.get('regime_hit_rate', 0)
+        prev_regime = previous.get('regime_hit_rate', 0)
+        comparison['regime_hit_rate'] = {
+            'current': curr_regime,
+            'previous': prev_regime,
+            'change': round(curr_regime - prev_regime, 2)
+        }
+
+        return comparison
+
+    def log_test_results(self, result: Dict):
+        """Log test results and send notifications if needed."""
+        logger.info(f"Daily Test Results for {result['date']}:")
+        logger.info(f"Symbol: {result['symbol']}")
+        logger.info(f"Window: {result['window_days']} days")
+        logger.info(f"Regime Hit Rate: {result['regime_hit_rate']}%")
+        logger.info(f"Best Strategy: {result.get('best_strategy', 'None')}")
+
+        if 'comparison' in result:
+            logger.info("Comparison to previous:")
+            for metric, comp in result['comparison'].items():
+                if metric != 'regime_hit_rate':
+                    logger.info(f"  {metric}: {comp['current']:.4f} (prev: {comp['previous']:.4f}, change: {comp['pct_change']:+.2f}%)")
+                else:
+                    logger.info(f"  {metric}: {comp['current']:.2f}% (prev: {comp['previous']:.2f}%, change: {comp['change']:+.2f}pp)")
+
+        # Check for significant degradation
+        degradation_alert = False
+        if 'comparison' in result:
+            sharpe_change = result['comparison'].get('Sharpe', {}).get('pct_change', 0)
+            if sharpe_change < -20:  # 20% degradation
+                degradation_alert = True
+                logger.warning(f"Significant Sharpe degradation: {sharpe_change:.2f}%")
+
+        # Send notification
+        message = f"SWING_BOT Daily Test - {result['date']}\n"
+        message += f"Symbol: {result['symbol']}\n"
+        message += f"Best Strategy: {result.get('best_strategy', 'None')}\n"
+        message += f"Sharpe: {result['strategies'].get(result.get('best_strategy', ''), {}).get('Sharpe', 0):.4f}\n"
+        message += f"Regime Hit Rate: {result['regime_hit_rate']}%\n"
+
+        if degradation_alert:
+            message += "ALERT: Significant performance degradation detected!\n"
+
+        try:
+            send_notification(message, "Daily Test Results")
+        except Exception as e:
+            logger.error(f"Failed to send notification: {e}")
+
+
+def run_daily_auto_test(symbol: str = 'RELIANCE.NS', config_path: str = 'config.yaml'):
+    """Main function to run daily automated testing."""
+    tester = AutoTester(config_path)
+    return tester.run_daily_test(symbol)</content>
+<parameter name="filePath">c:\Users\K01340\SWING_BOT_GIT\SWING_BOT\src\auto_test.py

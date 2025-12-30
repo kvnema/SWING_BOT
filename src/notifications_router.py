@@ -8,6 +8,7 @@ import os
 import requests
 import pandas as pd
 from typing import Dict, List, Optional, Any
+from datetime import datetime
 from pathlib import Path
 
 from .teams_notifier import post_plan_summary, post_error_notification
@@ -484,4 +485,203 @@ def notify_gtt_changes(message: str) -> bool:
 
     except Exception as e:
         logger.error(f"GTT notification failed: {str(e)}")
+        return False
+
+
+def send_telegram_self_improvement_report(
+    optimized_params: Dict,
+    recent_performance: List[Dict],
+    system_health: Dict,
+    run_id: str = None,
+    dry_run: bool = False
+) -> bool:
+    """
+    Send daily self-improvement report via Telegram.
+
+    Args:
+        optimized_params: Current optimized parameters
+        recent_performance: List of recent performance results
+        system_health: System health status
+        run_id: Optional run identifier
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+        if not telegram_token or not telegram_chat_id:
+            logger.warning("Telegram not configured for self-improvement reports")
+            if dry_run:
+                logger.info("DRY RUN: Would send Telegram report (not configured)")
+                return True
+            return False
+
+        # Build message
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M IST")
+        run_info = f" (Run: {run_id})" if run_id else ""
+
+        message = f"🚀 *SWING_BOT Daily Self-Improvement Report* {run_info}\n"
+        message += f"📅 {timestamp}\n\n"
+
+        # Current Parameters
+        if optimized_params:
+            message += "📊 *Current Optimized Parameters:*\n"
+            for key, value in optimized_params.items():
+                if key not in ['last_updated', 'performance_baseline']:
+                    message += f"• {key}: {value}\n"
+            message += f"• Performance Baseline: {optimized_params.get('performance_baseline', 'N/A')}\n"
+            message += f"• Last Updated: {optimized_params.get('last_updated', 'Never')}\n\n"
+        else:
+            message += "📊 *Current Parameters:* No optimized parameters found\n\n"
+
+        # Recent Performance
+        if recent_performance:
+            message += "📈 *Recent Performance (Last 7 Days):*\n"
+            for perf in recent_performance[-3:]:  # Show last 3 entries
+                date = perf.get('date', 'N/A')
+                symbol = perf.get('symbol', 'N/A')
+                strategy = perf.get('best_strategy', 'N/A')
+                sharpe = perf.get('sharpe_ratio', 0)
+                regime = perf.get('regime_hit_rate', 0)
+                message += f"• {date}: {symbol} | Strategy: {strategy} | Sharpe: {sharpe:.2f} | Regime: {regime:.1f}%\n"
+            message += "\n"
+        else:
+            message += "📈 *Recent Performance:* No recent data available\n\n"
+
+        # System Health
+        health_status = system_health.get('status', 'unknown')
+        health_icon = "✅" if health_status == 'healthy' else "⚠️" if health_status == 'warning' else "❌"
+        message += f"{health_icon} *System Health:* {health_status.title()}\n"
+
+        if system_health.get('issues'):
+            for issue in system_health['issues']:
+                message += f"• {issue}\n"
+
+        # Footer
+        message += f"\n🔄 *Next Run:* Daily at 16:30 IST (weekdays)\n"
+        message += f"📋 *Commands:*\n"
+        message += f"• Manual run: `python scripts\\daily_self_improve.py`\n"
+        message += f"• Check status: `python scripts\\status_dashboard.py`\n"
+        message += f"• View logs: `type logs\\daily_self_improve_*.log`"
+
+        if dry_run:
+            logger.info("DRY RUN - Telegram Self-Improvement Report:")
+            logger.info("=" * 50)
+            for line in message.split('\n'):
+                logger.info(line)
+            logger.info("=" * 50)
+            return True
+
+        # Send message
+        telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        telegram_payload = {
+            "chat_id": telegram_chat_id,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+
+        response = requests.post(telegram_url, json=telegram_payload, timeout=10)
+
+        if response.status_code == 200:
+            logger.info("Telegram self-improvement report sent successfully")
+            return True
+        else:
+            logger.error(f"Telegram self-improvement report failed: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Telegram self-improvement report exception: {str(e)}")
+        return False
+
+
+def send_telegram_alert(
+    alert_type: str,
+    message: str,
+    details: Dict = None,
+    run_id: str = None,
+    priority: str = "normal",
+    dry_run: bool = False
+) -> bool:
+    """
+    Send instant alert via Telegram for self-improvement events.
+
+    Args:
+        alert_type: Type of alert (parameter_change, test_complete, degradation, error)
+        message: Main alert message
+        details: Additional details dictionary
+        run_id: Optional run identifier
+        priority: Alert priority (normal, high, critical)
+
+    Returns:
+        bool: Success status
+    """
+    try:
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+        if not telegram_token or not telegram_chat_id:
+            logger.warning("Telegram not configured for alerts")
+            if dry_run:
+                logger.info(f"DRY RUN: Would send Telegram alert: {alert_type}")
+                return True
+            return False
+
+        # Build message
+        timestamp = datetime.now().strftime("%H:%M IST")
+        run_info = f" (Run: {run_id})" if run_id else ""
+
+        # Set icon based on alert type
+        icon_map = {
+            "test_complete": "✅",
+            "test_failure": "❌",
+            "parameter_change": "🔄",
+            "optimization_failure": "💥",
+            "system_health": "🏥",
+            "error": "🚨"
+        }
+        icon = icon_map.get(alert_type, "📢")
+
+        alert_message = f"{icon} *SWING_BOT Alert: {alert_type.replace('_', ' ').title()}* {run_info}\n"
+        alert_message += f"🕐 {timestamp}\n\n"
+        alert_message += f"{message}\n"
+
+        # Add details if provided
+        if details:
+            alert_message += "\n📋 *Details:*\n"
+            for key, value in details.items():
+                alert_message += f"• {key}: {value}\n"
+
+        if dry_run:
+            logger.info(f"DRY RUN - Telegram Alert ({alert_type}):")
+            logger.info("=" * 50)
+            for line in alert_message.split('\n'):
+                logger.info(line)
+            logger.info("=" * 50)
+            return True
+
+        # Send message
+        telegram_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        telegram_payload = {
+            "chat_id": telegram_chat_id,
+            "text": alert_message,
+            "parse_mode": "Markdown"
+        }
+
+        response = requests.post(telegram_url, json=telegram_payload, timeout=10)
+
+        if response.status_code == 200:
+            logger.info(f"Telegram alert sent successfully: {alert_type}")
+            return True
+        else:
+            logger.error(f"Telegram alert failed: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Telegram alert exception: {str(e)}")
+        return False
+
+    except Exception as e:
+        logger.error(f"Telegram alert exception: {str(e)}")
         return False

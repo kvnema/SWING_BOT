@@ -1,5 +1,5 @@
 {
-  "selected": "AVWAP",
+  "selected": "SEPA",
   "results": {
     "SEPA": {
       "Win_Rate_%": 0.0,
@@ -50,28 +50,29 @@
       "Total_Trades": 0
     },
     "Squeeze": {
-      "Win_Rate_%": 50.0,
-      "AvgR": 0.136,
-      "ExpectancyR": 0.136,
-      "SQN": 0.5511,
-      "MaxDD": -0.0183,
-      "Sharpe": 0.0605,
-      "Sortino": 0.003,
-      "CAGR": 0.0103,
-      "TotalReturn": 0.0281,
-      "Total_Trades": 18
+      "Win_Rate_%": 0.0,
+      "AvgR": 0.0,
+      "ExpectancyR": 0.0,
+      "SQN": 0.0,
+      "MaxDD": 0.0,
+      "Sharpe": 0.0,
+      "Sortino": 0.0,
+      "CAGR": 0.0,
+      "TotalReturn": 0.0,
+      "Total_Trades": 0
     },
     "AVWAP": {
-      "Win_Rate_%": 49.2,
-      "AvgR": 0.6025,
-      "ExpectancyR": 0.6025,
-      "SQN": 1.0275,
-      "MaxDD": -0.4209,
-      "Sharpe": 0.1073,
-      "Sortino": 0.0267,
-      "CAGR": 0.4,
-      "TotalReturn": 1.4757,
-      "Total_Trades": 250
+      "Win_Rate_%": 0.0,
+      "AvgR": -43.8318,
+      "ExpectancyR": -43.8318,
+      "SQN": -33.9685,
+      "MaxDD": -3.0215,
+      "Sharpe": -0.011,
+      "Sortino": -0.0036,
+      "CAGR": NaN,
+      "TotalReturn": -3.0215,
+      "Total_Trades": 7
     }
-  }
+  },
+  "momentum_focus": true
 }

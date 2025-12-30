@@ -40,12 +40,30 @@ SWING_BOT now uses sophisticated market regime detection:
 SWING_BOT includes comprehensive Telegram alert system for regime changes and signals:
 
 ### Setup Telegram Alerts
-1. Create a Telegram bot: Message [@BotFather](https://t.me/botfather) with `/newbot`
-2. Get your chat ID: Message [@userinfobot](https://t.me/userinfobot)
-3. Add to `.env`:
+1. Your bot is already created: **@swingkopal_bot**
+2. Start a conversation with the bot and send any message
+3. Get your chat ID by visiting: https://api.telegram.org/bot8486307857:AAHt4XXRokWf_Uv49NIVozp3lj1W-seqMg4/getUpdates
+4. Look for `"chat":{"id":YOUR_CHAT_ID,...}` in the JSON response
+
+#### Quick Setup (Windows):
+```powershell
+# Run the setup script with your chat ID
+.\setup_telegram.ps1 -ChatId 7227129007
+
+# Example:
+.\setup_telegram.ps1 -ChatId 7227129007
+```
+
+#### Manual Setup:
+Add to your environment variables or `.env` file:
 ```bash
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-TELEGRAM_CHAT_ID=your_chat_id_here
+TELEGRAM_BOT_TOKEN=8486307857:AAHt4XXRokWf_Uv49NIVozp3lj1W-seqMg4
+TELEGRAM_CHAT_ID=7227129007
+```
+
+#### Test Connection:
+```bash
+python scripts\test_telegram.py
 ```
 
 ### Market Monitoring
@@ -714,7 +732,139 @@ python scripts/calibration_snapshot.py
 - **Script Logs**: Individual logs for notification and maintenance scripts
 - **Error Logs**: Detailed stack traces with function names and line numbers
 
-## 🤝 Contributing
+## � Self-Improving Capabilities
+
+SWING_BOT includes automated daily testing and optimization to continuously improve performance with minimal human intervention.
+
+### Daily Self-Improvement Cycle
+
+The system runs automated daily cycles at EOD (post-market close) to:
+- **Test Performance**: Evaluate strategy performance on recent market data
+- **Optimize Parameters**: Use Bayesian optimization to tune strategy parameters
+- **Monitor Degradation**: Alert on significant performance drops
+- **Apply Improvements**: Gradually update parameters when validation passes
+
+### Setup Self-Improvement
+
+1. **Install Optimization Dependencies**:
+```bash
+pip install optuna>=3.0.0
+```
+
+2. **Configure Optimization Parameters**:
+Edit `config.yaml` to add optimization settings:
+```yaml
+optimization:
+  enabled: true
+  improvement_threshold: 0.10  # 10% minimum improvement
+  max_gradual_change: 0.05     # Max 5% parameter change per day
+  daily_trials: 30             # Optuna trials per day
+```
+
+### Running Self-Improvement
+
+#### Manual Commands
+```bash
+# Run daily auto-testing only
+python -m src.cli auto-test --symbol RELIANCE.NS
+
+# Run self-optimization only
+python -m src.cli self-optimize
+
+# Run complete daily cycle
+python scripts/daily_self_improve.py
+```
+
+#### Automated Scheduling
+```bash
+# Windows Task Scheduler (daily at 16:30)
+schtasks /create /tn "SWING_BOT_Self_Improve" /tr "python scripts\daily_self_improve.py" /sc daily /st 16:30
+
+# Linux/Mac cron (weekdays at 16:30 IST)
+30 16 * * 1-5 /usr/bin/python3 /path/to/scripts/daily_self_improve.py
+```
+
+### Optimized Parameters
+
+The system optimizes these key parameters:
+- **RSI Thresholds**: Min/max values for overbought/oversold detection
+- **ADX Threshold**: Trend strength requirements
+- **Trailing Multiplier**: Stop loss aggressiveness
+- **Ensemble Count**: Number of confirmation signals required
+
+### Safety Features
+
+- **Gradual Changes**: Max 5% parameter shift per day to prevent instability
+- **Out-of-Sample Validation**: Walk-forward testing on holdout data
+- **Improvement Threshold**: Only applies changes with >10% validated improvement
+- **Fallback Mode**: Reverts to safe defaults if optimization fails
+- **Monitoring Alerts**: Telegram/Teams notifications for all changes and issues
+
+### Telegram Reports & Alerts
+
+SWING_BOT sends automated Telegram reports to keep you informed about the self-improvement process:
+
+#### Daily Self-Improvement Report (~16:45 IST)
+- **Current Parameters**: RSI range, ADX threshold, trail multiplier, ensemble count, ATR period
+- **Performance Metrics**: Sharpe baseline, regime accuracy, improvement deltas
+- **System Health**: Status checks and any issues detected
+- **Market Context**: Brief regime analysis
+
+#### Instant Alerts
+- **Parameter Updates**: When optimization successfully applies new parameters
+- **Test Completion**: Success/failure notifications for daily auto-testing
+- **Optimization Results**: Validation pass/fail with improvement percentages
+- **Critical Errors**: Data fetch failures, optimization crashes, system issues
+
+#### Sample Daily Report
+```
+🚀 SWING_BOT Daily Self-Improvement Report (Run: 20251229_1645)
+📅 2025-12-29 16:45 IST
+
+📊 Current Optimized Parameters:
+• rsi_min: 28.5
+• rsi_max: 66.5
+• adx_threshold: 21.0
+• trail_multiplier: 1.575
+• ensemble_count: 3.15
+• Performance Baseline: 1.3493
+• Last Updated: 2025-12-29
+
+📈 Recent Performance (Last 7 Days):
+• 2025-12-29: RELIANCE.NS | Strategy: VCP | Sharpe: 1.2 | Regime: 65.0%
+• 2025-12-28: TCS.NS | Strategy: SEPA | Sharpe: 1.1 | Regime: 62.0%
+
+✅ System Health: Healthy
+
+🔄 Next Run: Daily at 16:30 IST (weekdays)
+📋 Commands:
+• Manual run: python scripts\daily_self_improve.py
+• Check status: python scripts\status_dashboard.py
+• View logs: type logs\daily_self_improve_*.log
+```
+
+#### Sample Instant Alerts
+```
+⚠️ SWING_BOT Alert: Parameter Change (Run: 20251229_1645)
+🕐 16:42 IST
+
+🔄 Parameters updated with +12.3% improvement
+• Changes applied: 3 parameters
+
+📋 Details:
+• rsi_min: 28.5
+• adx_threshold: 21.0
+• trail_multiplier: 1.575
+```
+
+### Performance Tracking
+
+Self-improvement results are logged to:
+- `outputs/self_optimize/optimized_params.json` - Current parameters
+- `outputs/auto_test/test_history.json` - Daily performance history
+- `logs/daily_self_improve_YYYYMMDD.log` - Detailed execution logs
+
+## �🤝 Contributing
 
 ### Development Setup
 ```bash
