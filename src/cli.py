@@ -1319,8 +1319,27 @@ def cmd_orchestrate_live(args):
         # 7. Place GTT orders (if enabled)
         if getattr(args, 'place_gtt', False):
             print("📤 Step 7: Place GTT orders...")
-            placed_orders = place_live_gtt_orders(reconciled_df, getattr(args, 'tsl', False))
+            confidence_threshold = getattr(args, 'confidence_threshold', 0.20)
+            placed_orders = place_live_gtt_orders(reconciled_df, getattr(args, 'tsl', False), confidence_threshold)
             print(f"✅ GTT placement completed: {len(placed_orders)} orders placed")
+
+            # 7.5. Scan for live trade updates and update success model
+            print("🔄 Step 7.5: Scan live trades and update success model...")
+            try:
+                access_token = os.environ.get('UPSTOX_ACCESS_TOKEN')
+                if access_token:
+                    from .live_trade_tracker import scan_live_trades
+
+                    updates = scan_live_trades(access_token)
+                    print(f"✅ Live trade scan completed: {len(updates['new_entries'])} new entries, {len(updates['exits'])} exits")
+
+                    # Rebuild success model with any new live trades
+                    success_model = build_hierarchical_model(bt_root="outputs/backtests", today=pd.Timestamp.today())
+                    print("✅ Success model updated with live trade data")
+                else:
+                    print("⚠️  UPSTOX_ACCESS_TOKEN not found - skipping live trade scan")
+            except Exception as e:
+                print(f"⚠️  Live trade scan failed: {e}")
         else:
             print("📤 Step 7: GTT placement skipped (--place-gtt not enabled)")
 
@@ -1359,8 +1378,8 @@ def cmd_orchestrate_live(args):
         return False
 
 
-def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False) -> List[Dict]:
-    """Place GTT orders for PASS rows with confidence >= 0.70."""
+def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False, confidence_threshold: float = 0.20) -> List[Dict]:
+    """Place GTT orders for PASS rows with confidence >= threshold."""
     placed_orders = []
     access_token = os.environ.get('UPSTOX_ACCESS_TOKEN')
 
@@ -1368,14 +1387,42 @@ def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False) -> Li
         print("❌ UPSTOX_ACCESS_TOKEN not found in environment")
         return placed_orders
 
+    # Safety gates
+    max_positions = int(os.environ.get('MAX_CONCURRENT_POSITIONS', '10'))
+    max_sector_pct = float(os.environ.get('MAX_SECTOR_EXPOSURE_PCT', '40')) / 100.0
+
     # Filter for placement
     eligible = plan_df[
         (plan_df['Audit_Flag'] == 'PASS') &
-        (plan_df['DecisionConfidence'] >= 0.70) &
+        (plan_df['DecisionConfidence'] >= confidence_threshold) &
         (plan_df['InstrumentToken'].notna())
     ]
 
-    print(f"📤 Placing GTT for {len(eligible)} eligible positions...")
+    print(f"📤 Placing GTT for {len(eligible)} eligible positions (confidence >= {confidence_threshold})...")
+
+    # Apply safety gates
+    if len(eligible) > max_positions:
+        print(f"⚠️  Safety: Limiting to {max_positions} positions (had {len(eligible)})")
+        eligible = eligible.nlargest(max_positions, 'DecisionConfidence')
+
+    # Sector exposure check (simplified - assumes Sector column exists)
+    if 'Sector' in eligible.columns:
+        sector_counts = eligible['Sector'].value_counts()
+        total_positions = len(eligible)
+        for sector, count in sector_counts.items():
+            sector_pct = count / total_positions
+            if sector_pct > max_sector_pct:
+                print(f"⚠️  Safety: {sector} exposure {sector_pct:.1%} > {max_sector_pct:.1%}, reducing...")
+                sector_positions = eligible[eligible['Sector'] == sector]
+                keep_count = int(max_sector_pct * total_positions)
+                if keep_count > 0:
+                    # Keep highest confidence positions in this sector
+                    keep_positions = sector_positions.nlargest(keep_count, 'DecisionConfidence')
+                    eligible = eligible[eligible['Sector'] != sector].append(keep_positions)
+                else:
+                    eligible = eligible[eligible['Sector'] != sector]
+
+    print(f"✅ After safety gates: {len(eligible)} positions to place")
 
     for _, row in eligible.iterrows():
         try:
@@ -1425,8 +1472,25 @@ def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False) -> Li
                 }
                 placed_orders.append(order_record)
                 print(f"✅ {row['Symbol']}: GTT placed (ID: {result.get('order_id', 'UNKNOWN')})")
+
+                # Telegram alert for successful order placement
+                try:
+                    from .notifications_router import send_telegram_alert
+                    message = f"🎯 SWING_BOT: GTT Order Placed\n• Symbol: {row['Symbol']}\n• Entry: ₹{row['ENTRY_trigger_price']:.2f}\n• Stop: ₹{row['STOPLOSS_trigger_price']:.2f}\n• Target: ₹{row['TARGET_trigger_price']:.2f}\n• Confidence: {row['DecisionConfidence']:.3f}\n• Order ID: {result.get('order_id', 'UNKNOWN')}"
+                    send_telegram_alert("order_placed", message)
+                except Exception as e:
+                    print(f"⚠️  Telegram alert failed: {e}")
+
             else:
                 print(f"❌ {row['Symbol']}: GTT failed - {result.get('body', {})}")
+
+                # Telegram alert for failed order
+                try:
+                    from .notifications_router import send_telegram_alert
+                    message = f"❌ SWING_BOT: GTT Order Failed\n• Symbol: {row['Symbol']}\n• Reason: {result.get('body', {}).get('message', 'Unknown error')}\n• Confidence: {row['DecisionConfidence']:.3f}"
+                    send_telegram_alert("order_failed", message)
+                except Exception as e:
+                    print(f"⚠️  Telegram alert failed: {e}")
 
         except Exception as e:
             print(f"❌ {row['Symbol']}: Exception during GTT placement - {str(e)}")
@@ -1944,6 +2008,7 @@ def main():
     p.add_argument('--post-teams', action='store_true', help='Post results to Teams')
     p.add_argument('--live', action='store_true', help='Fetch live quotes instead of historical data')
     p.add_argument('--place-gtt', action='store_true', help='Place GTT orders on Upstox')
+    p.add_argument('--confidence-threshold', type=float, default=0.20, help='Minimum confidence threshold for GTT placement (default: 0.20)')
     p.add_argument('--tsl', action='store_true', help='Enable trailing stop loss')
     p.add_argument('--run-at', choices=['now', '16:15', '09:00'], default='now', help='Run timing (affects AMO inference)')
     p.add_argument('--confirm-rsi', action='store_true', help='Require RSI confirmation for entries')

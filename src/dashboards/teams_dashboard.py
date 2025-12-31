@@ -71,6 +71,16 @@ def build_daily_html(
     # Runtime (mock for now - would be passed from orchestration)
     runtime_seconds = 45.2
 
+    # Live trading metrics (import here to avoid circular import)
+    try:
+        from ..live_trade_tracker import get_live_positions, get_daily_pnl
+        live_positions = get_live_positions()
+        daily_pnl = get_daily_pnl(days=1)
+    except ImportError:
+        # Fallback if live_trade_tracker not available
+        live_positions = []
+        daily_pnl = {'total_pnl': 0, 'win_rate': 0}
+
     # Top positions
     top_positions = audit_df.head(10) if not audit_df.empty else pd.DataFrame()
 
@@ -241,6 +251,18 @@ def build_daily_html(
                 <div class="kpi-label">Avg LTP Delta</div>
             </div>
             ''' if reconciled_df is not None else ''}
+            <div class="kpi-card">
+                <div class="kpi-value">{len(live_positions)}</div>
+                <div class="kpi-label">Live Positions</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value">₹{daily_pnl.get('total_pnl', 0):+.0f}</div>
+                <div class="kpi-label">Daily P&L</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-value">{daily_pnl.get('win_rate', 0):.1%}</div>
+                <div class="kpi-label">Win Rate</div>
+            </div>
         </div>
 
         <div class="section">
@@ -279,6 +301,51 @@ def build_daily_html(
         html_content += """
                     <tr>
                         <td colspan="6" style="text-align: center;">No positions available</td>
+                    </tr>
+"""
+
+    html_content += """
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Live Positions</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Entry Price</th>
+                        <th>Current Price</th>
+                        <th>P&L</th>
+                        <th>P&L %</th>
+                        <th>Entry Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
+
+    # Add live positions rows
+    if live_positions:
+        for position in live_positions:
+            pnl = position.get('current_pnl', 0)
+            pnl_pct = position.get('current_pnl_pct', 0)
+            pnl_class = 'status-pass' if pnl > 0 else 'status-fail' if pnl < 0 else ''
+
+            html_content += f"""
+                    <tr>
+                        <td>{position.get('symbol', 'N/A')}</td>
+                        <td>₹{position.get('entry_price', 0):.2f}</td>
+                        <td>₹{position.get('current_price', 0):.2f}</td>
+                        <td class="{pnl_class}">₹{pnl:+.0f}</td>
+                        <td class="{pnl_class}">{pnl_pct:+.2f}%</td>
+                        <td>{position.get('entry_date', 'N/A')}</td>
+                    </tr>
+"""
+    else:
+        html_content += """
+                    <tr>
+                        <td colspan="6" style="text-align: center;">No live positions</td>
                     </tr>
 """
 

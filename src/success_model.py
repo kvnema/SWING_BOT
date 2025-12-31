@@ -39,7 +39,11 @@ def load_oos_trades(bt_root: str) -> pd.DataFrame:
                     required_cols = ['Date', 'Symbol', 'R']
                     for col in required_cols:
                         if col not in oos_trades.columns:
-                            oos_trades[col] = None
+                            # Map alternative column names
+                            if col == 'Date' and 'EntryDate' in oos_trades.columns:
+                                oos_trades['Date'] = oos_trades['EntryDate']
+                            else:
+                                oos_trades[col] = None
                     
                     # Add is_win column
                     oos_trades['is_win'] = (oos_trades['R'] > 0).astype(int)

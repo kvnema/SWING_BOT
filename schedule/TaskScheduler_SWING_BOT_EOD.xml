@@ -50,8 +50,8 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>C:\Users\K01340\SWING_BOT_GIT\SWING_BOT\.venv\Scripts\python.exe</Command>
-      <Arguments>-m src.cli orchestrate-eod --data-out data/indicators_500d.parquet --max-age-days 1 --required-days 500 --top 25 --strict true --post-teams true --multi-tf true</Arguments>
+      <Command>C:\Users\K01340\SWING_BOT_GIT\SWING_BOT\daily_run.bat</Command>
+      <Arguments></Arguments>
       <WorkingDirectory>C:\Users\K01340\SWING_BOT_GIT\SWING_BOT</WorkingDirectory>
     </Exec>
   </Actions>

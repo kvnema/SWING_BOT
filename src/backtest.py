@@ -65,6 +65,7 @@ def backtest_strategy(df: pd.DataFrame, flag_col: str, cfg: dict, confirm_rsi: b
             'EntryPrice': entry_price,
             'ExitDate': exit_row['Date'],
             'ExitPrice': exit_price,
+            'Symbol': row['Symbol'],
             'R': R,
             'Qty': qty,
             'Pnl': pnl - cost,
@@ -266,8 +267,7 @@ def walk_forward_backtest(df: pd.DataFrame, flag_col: str, cfg: dict,
         }
 
     return {
-        'combined_kpi': combined_kpi,
-        'window_results': results,
-        'combined_trades': combined_trades,
-        'combined_equity': combined_equity
+        'kpi': combined_kpi,
+        'trades': combined_trades,
+        'equity_curve': combined_equity
     }

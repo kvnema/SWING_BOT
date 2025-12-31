@@ -25,7 +25,7 @@ class TelegramNotifier:
             logger.warning("Telegram enabled but missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
             self.enabled = False
 
-    def send_message(self, message: str, parse_mode: str = 'Markdown') -> bool:
+    def send_message(self, message: str, parse_mode: str = None) -> bool:
         """Send a message to Telegram."""
         if not self.enabled:
             return False
@@ -35,9 +35,11 @@ class TelegramNotifier:
             data = {
                 'chat_id': self.chat_id,
                 'text': message,
-                'parse_mode': parse_mode,
                 'disable_web_page_preview': True
             }
+            
+            if parse_mode:
+                data['parse_mode'] = parse_mode
 
             response = requests.post(url, data=data, timeout=10)
 

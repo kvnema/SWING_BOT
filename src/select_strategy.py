@@ -32,16 +32,22 @@ def select_best_strategy(df: pd.DataFrame, strategies: dict, cfg: dict, out_dir:
     # FIXED HIERARCHY: Always use this priority order (no backtest-driven selection)
     strategy_hierarchy = ['VCP', 'SEPA', 'Squeeze', 'Donchian', 'MR', 'AVWAP']
 
-    # Select first available strategy from hierarchy
+    # Select strategy from hierarchy, preferring those with actual trades
     best = None
+    max_trades = -1
     for strategy in strategy_hierarchy:
-        if strategy in strategies:
-            best = strategy
-            break
+        if strategy in results:
+            trades = results[strategy].get('Total_Trades', 0)
+            if trades > max_trades:
+                max_trades = trades
+                best = strategy
 
-    # Fallback to first available if hierarchy fails
+    # Fallback to first in hierarchy if no trades found
     if best is None:
-        best = list(strategies.keys())[0]
+        for strategy in strategy_hierarchy:
+            if strategy in strategies:
+                best = strategy
+                break
 
     sel = {
         'selected': best,

@@ -84,9 +84,74 @@ class SelfOptimizer:
             'atr_period': trial.suggest_int('atr_period', 10, 20)
         }
 
-        # Mock optimization result - replace with actual implementation
-        sharpe = 1.2 + np.random.normal(0, 0.1)  # Mock Sharpe ratio
-        return sharpe
+        try:
+            # Load recent data for optimization (last 3 months)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=90)
+
+            # Fetch or load data
+            data_file = self.output_dir / 'optimization_data.csv'
+            if not data_file.exists():
+                # Fetch data if not cached
+                df = fetch_nifty50_data(start_date, end_date)
+                df.to_csv(data_file, index=False)
+            else:
+                df = pd.read_csv(data_file)
+
+            if df.empty:
+                logger.warning("No data available for optimization")
+                return 0.0
+
+            # Apply signals with trial parameters
+            df_signals = df.copy()
+
+            # Modify config with trial parameters
+            trial_config = self.cfg.copy()
+            trial_config['signals'] = trial_config.get('signals', {})
+            trial_config['signals']['rsi_min'] = params['rsi_min']
+            trial_config['signals']['rsi_max'] = params['rsi_max']
+            trial_config['signals']['adx_threshold'] = params['adx_threshold']
+            trial_config['risk'] = trial_config.get('risk', {})
+            trial_config['risk']['trail_multiplier'] = params['trail_multiplier']
+
+            # Compute signals
+            df_signals = compute_signals(df_signals)
+
+            # Run backtest with trial parameters
+            strategies = {
+                'SEPA': 'SEPA_Flag',
+                'VCP': 'VCP_Flag',
+                'Donchian': 'Donchian_Breakout',
+                'MR': 'MR_Flag',
+                'Squeeze': 'SqueezeBreakout_Flag',
+                'AVWAP': 'AVWAP_Reclaim_Flag'
+            }
+
+            # Select strategy with most trades (same logic as live system)
+            results = {}
+            for name, flag in strategies.items():
+                res = backtest_strategy(df_signals, flag, trial_config, False, False, False)
+                results[name] = res['kpi']
+
+            # Find strategy with most trades
+            best_strategy = None
+            max_trades = -1
+            for strategy, kpi in results.items():
+                trades = kpi.get('Total_Trades', 0)
+                if trades > max_trades:
+                    max_trades = trades
+                    best_strategy = strategy
+
+            if best_strategy and results[best_strategy]['Total_Trades'] > 0:
+                # Return Sharpe ratio as optimization target
+                sharpe = results[best_strategy].get('Sharpe', 0.0)
+                return sharpe if not np.isnan(sharpe) else 0.0
+            else:
+                return 0.0
+
+        except Exception as e:
+            logger.error(f"Optimization trial failed: {e}")
+            return 0.0
 
     def run_optimization(self, n_trials: int = 10) -> Dict:
         """Run Bayesian optimization."""
