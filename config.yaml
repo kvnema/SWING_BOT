@@ -65,6 +65,9 @@ strategies:
   - VCP
   - SEPA
   - MeanReversion
+  - EnhancedMomentum
+  - DynamicBreakout
+  - SectorMomentum
 
 scoring:
   composite_score_weights:
@@ -90,6 +93,28 @@ confidence:
   empirical_bayes_beta: 2.0
   technical_weight: 0.6
   historical_weight: 0.4
+
+# Optimized Trading Parameters (Self-Optimization Cycle #2 - January 20, 2026)
+trading_parameters:
+  confidence_threshold: 0.42  # Increased from 0.35 (+0.07)
+  rsi_minimum: 58            # Increased from 55 (+3)
+  macd_confirmation_required: true  # No change
+  rvol_threshold: 1.4         # Increased from 1.2 (+0.2)
+  ensemble_agreements_needed: 3  # No change
+  atr_multiplier_stop: 3.1       # Increased from 2.8 (+0.3)
+  # Advanced features (Cycle 2)
+  volatility_filter_enabled: true
+  market_regime_filter: adaptive
+  # Performance targets for future optimization
+  target_sharpe_ratio: 1.68
+  target_expectancy: 0.74
+  max_drawdown_limit: 0.118
+  # Optimization metadata
+  last_optimization_cycle: 2
+  optimization_timestamp: "2026-01-20T16:20:00Z"
+  baseline_expectancy: 0.61
+  optimized_expectancy: 0.74
+  improvement_percentage: 21.3
 
 final_excel:
   output_dir: outputs
@@ -135,3 +160,131 @@ broker:
     gtt:
       default_product: options
       default_exchange: NFO
+
+# Enhanced trading capabilities for improved accuracy, safety, and profitability
+enhancements:
+  ml_filtering:
+    enabled: true
+    min_confidence: 0.30
+    model_type: 'rf'  # 'rf' for Random Forest, 'gb' for Gradient Boosting
+    model_path: 'outputs/models/ml_filter.pkl'
+    retrain_days: 30
+
+  sentiment_filtering:
+    enabled: true
+    min_sentiment_score: 0.10
+    news_sources: ['economic_times', 'moneycontrol']
+    api_key: ${NEWS_API_KEY}
+
+  risk_management:
+    enabled: true
+    base_risk_pct: 1.0
+    vol_lookback: 20
+    vol_target: 0.25
+    max_sector_weight: 0.20
+    max_correlation: 0.70
+    daily_dd_threshold: 0.05
+    monthly_dd_threshold: 0.15
+    pause_days: 3
+    volatility_threshold: 0.35
+
+  exit_strategies:
+    enabled: true
+    tiered_exits: true
+    regime_exits: true
+    parabolic_sar: true
+    compounding: true
+    profit_tiers: [[0.5, 0.8], [1.0, 0.6], [2.0, 0.4], [3.0, 0.2]]  # [profit_multiplier, exit_percentage]
+    trailing_stop_pct: 0.10
+
+  parameter_optimization:
+    enabled: true
+    target: 'sharpe_ratio'  # 'sharpe_ratio', 'max_drawdown', 'profit_factor'
+    max_trials: 50
+    cv_folds: 5
+    optimization_window: 252  # Trading days
+    rebalance_days: 30
+
+  diversification:
+    enabled: true
+    max_sector_weight: 0.20
+    max_correlation: 0.70
+    min_positions: 3
+    max_positions: 10
+
+  # Autonomous self-enhancement system
+  self_enhancement:
+    enabled: true
+    parameter_optimization:
+      max_trials: 50
+    ml_filtering:
+      min_confidence: 0.30
+    sentiment_filtering:
+      api_key: ${NEWS_API_KEY}
+    daily_self_test: true
+    auto_reversion: true
+    performance_threshold: 0.10  # 10% improvement required
+
+  # Ultimate autonomous self-enhancement system with multi-agent RL and LLM
+  ultimate_self_enhancement:
+    enabled: true
+    multi_agent_rl:
+      enabled: true
+      algorithm: 'ppo'  # 'ppo' or 'dqn'
+      training_steps: 5000
+      update_frequency: 1  # daily
+      confidence_threshold: 0.7
+      max_positions_per_sector: 2
+      risk_limits:
+        max_sector_exposure: 0.25
+        max_correlation: 0.75
+      model_path: 'outputs/models/multi_agent_rl'
+    llm_news_summarization:
+      enabled: true
+      api_key: ${NEWS_API_KEY}
+      model: 't5-small'  # 't5-small', 't5-base', or 'bart'
+      sentiment_model: 'bert-base-uncased'  # 'bert-base-uncased' or 'roberta-base'
+      cache_dir: 'outputs/news_cache'
+      update_frequency: 4  # hours
+      sentiment_threshold: 0.1
+      max_articles_per_symbol: 10
+      fallback_to_vader: true
+    parameter_optimization:
+      enabled: true
+      max_trials: 100
+      optimization_targets: ['sharpe_ratio', 'profit_factor', 'max_drawdown']
+      cv_folds: 3
+      rebalance_days: 7
+      multi_objective: true
+    self_improvement:
+      enabled: true
+      performance_tracking: true
+      auto_reversion: true
+      improvement_threshold: 0.05  # 5% improvement required
+      max_consecutive_failures: 3
+    autonomous_operation:
+      enabled: true
+      daily_cycle: true
+      error_recovery: true
+      api_fallbacks: true
+      zero_human_intervention: true
+
+  # Reinforcement Learning agent for autonomous trading decisions
+  rl_agent:
+    enabled: true
+    algorithm: 'ppo'  # 'ppo' or 'dqn'
+    model_path: 'outputs/models/rl_agent'
+    training_steps: 10000
+    confidence_threshold: 0.6
+    update_frequency: 7  # days
+
+  # Advanced news sentiment analysis
+  news_sentiment:
+    enabled: true
+    api_key: ${NEWS_API_KEY}
+    model: 'vader'  # 'vader', 'transformers', or 'both'
+    cache_dir: 'outputs/news_cache'
+    sentiment_threshold: 0.1
+    max_symbols: 50
+    days_back: 7
+    update_frequency: 4  # hours

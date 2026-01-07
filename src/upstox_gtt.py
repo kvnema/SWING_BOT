@@ -150,6 +150,13 @@ def modify_gtt_order(access_token: str, payload: Dict[str, Any]) -> Dict:
     return {'status_code': resp.status_code, 'body': resp.json() if resp.content else {}}
 
 
+def cancel_gtt_order(access_token: str, gtt_id: str) -> Dict:
+    """Cancel a GTT order by ID."""
+    url = BASE + f'/order/gtt/{gtt_id}'
+    resp = requests.delete(url, headers=_headers(access_token))
+    return {'status_code': resp.status_code, 'body': resp.json() if resp.content else {}}
+
+
 def place_gtt_order_multi(instrument_token: str, quantity: int, product: str, rules: list, transaction_type: str, access_token: str, tsl_gap: Optional[float] = None, dry_run: bool = False, retries: int = 3, backoff: float = 1.0, log_path: str = 'outputs/logs/gtt_place_multi.log') -> Dict:
     """Place multi-leg GTT order with ENTRY, STOPLOSS, TARGET rules.
 
@@ -170,11 +177,11 @@ def place_gtt_order_multi(instrument_token: str, quantity: int, product: str, ru
         Dict with status_code and body/order_id
     """
     payload = {
-        "type": "MULTIPLE",
         "quantity": quantity,
         "product": product,
         "transaction_type": transaction_type,
         "instrument_token": instrument_token,
+        "type": "MULTIPLE",
         "rules": rules
     }
 

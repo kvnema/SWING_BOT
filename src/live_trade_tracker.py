@@ -73,12 +73,15 @@ class LiveTradeTracker:
             return updates
 
         orders_data = response.get('body', {}).get('data', [])
+        logger.info(f"Fetched {len(orders_data)} GTT orders from Upstox")
 
         for order in orders_data:
             gtt_id = order.get('gtt_order_id')
             status = order.get('status')
             instrument_token = order.get('instrument_token')
             symbol = order.get('trading_symbol', '')
+
+            logger.debug(f"Processing GTT order {gtt_id} for {symbol}: status={status}")
 
             # Check if this is a new entry execution
             if status == 'triggered' and instrument_token not in self.positions:
@@ -96,6 +99,7 @@ class LiveTradeTracker:
                         'status': 'open'
                     }
                     updates['new_entries'].append(self.positions[instrument_token])
+                    logger.info(f"New position opened: {symbol} at {entry_details['price']:.2f}")
 
                     # Telegram alert
                     try:
@@ -133,6 +137,7 @@ class LiveTradeTracker:
 
                     self._log_trade(trade)
                     updates['exits'].append(trade)
+                    logger.info(f"Position closed: {position['symbol']} P&L: ₹{trade['pnl']:.2f} ({trade['R']:.2f}R)")
 
                     # Telegram alert
                     try:
@@ -146,6 +151,7 @@ class LiveTradeTracker:
                 del self.positions[instrument_token]
 
         self._save_positions()
+        logger.info(f"Live trade scan completed: {len(updates['new_entries'])} new entries, {len(updates['exits'])} exits")
         return updates
 
     def _extract_entry_details(self, order: Dict) -> Optional[Dict]:
@@ -231,7 +237,15 @@ live_trade_tracker = LiveTradeTracker()
 
 def scan_live_trades(access_token: str) -> Dict[str, List]:
     """Scan for live trade updates."""
-    return live_trade_tracker.scan_gtt_orders(access_token)
+    try:
+        return live_trade_tracker.scan_gtt_orders(access_token)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Live trade scan failed: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {'new_entries': [], 'exits': [], 'modifications': []}
 
 def get_live_positions() -> List[Dict]:
     """Get current open positions."""

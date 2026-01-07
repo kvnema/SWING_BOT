@@ -10,7 +10,7 @@ def make_tsm_df(n=260):
     low = close - np.random.uniform(0, 0.5, n)
     vol = np.ones(n) * 1000
     dates = pd.date_range(end=pd.Timestamp.today(), periods=n, freq='B')
-    return pd.DataFrame({'Date': dates, 'Open': close, 'High': high, 'Low': low, 'Close': close, 'Volume': vol})
+    return pd.DataFrame({'Date': dates, 'Open': close, 'High': high, 'Low': low, 'Close': close, 'Volume': vol, 'Symbol': 'TEST'})
 
 
 def test_tsm_flag_true_for_positive_12m_return():

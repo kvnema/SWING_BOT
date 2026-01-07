@@ -107,6 +107,57 @@ def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
     # AVWAP_Reclaim_Flag
     d['AVWAP_Reclaim_Flag'] = ((d['Trend_OK'] == 1) & (d['Close'] > d['AVWAP60'])).astype(int)
 
+    # Enhanced Momentum Strategy (QuantConnect-inspired)
+    try:
+        from .strategies.enhanced_momentum import signal as enhanced_momentum_signal
+        momentum_signals = enhanced_momentum_signal(d)
+        d = d.merge(momentum_signals[['Signal', 'Confidence', 'Momentum_Weighted', 'Trend_Strength']],
+                   left_index=True, right_index=True, how='left', suffixes=('', '_EnhancedMomentum'))
+        # Rename to avoid conflicts
+        d['EnhancedMomentum_Signal'] = d['Signal'].fillna(0).astype(int)
+        d['EnhancedMomentum_Confidence'] = d['Confidence'].fillna(0)
+        d = d.drop(['Signal', 'Confidence', 'Momentum_Weighted', 'Trend_Strength'], axis=1, errors='ignore')
+    except Exception as e:
+        print(f"Warning: Enhanced Momentum strategy failed: {e}")
+        d['EnhancedMomentum_Signal'] = 0
+        d['EnhancedMomentum_Confidence'] = 0.0
+
+    # Dynamic Breakout Strategy (QuantConnect-inspired)
+    try:
+        from .strategies.dynamic_breakout import signal as dynamic_breakout_signal
+        breakout_signals = dynamic_breakout_signal(d)
+        d = d.merge(breakout_signals[['Signal', 'Confidence', 'Breakout_Strength', 'Resistance_Level', 'Support_Level']],
+                   left_index=True, right_index=True, how='left', suffixes=('', '_DynamicBreakout'))
+        # Rename to avoid conflicts
+        d['DynamicBreakout_Signal'] = d['Signal'].fillna(0).astype(int)
+        d['DynamicBreakout_Confidence'] = d['Confidence'].fillna(0)
+        d = d.drop(['Signal', 'Confidence', 'Breakout_Strength', 'Resistance_Level', 'Support_Level'], axis=1, errors='ignore')
+    except Exception as e:
+        print(f"Warning: Dynamic Breakout strategy failed: {e}")
+        d['DynamicBreakout_Signal'] = 0
+        d['DynamicBreakout_Confidence'] = 0.0
+
+    # Sector Momentum Strategy (QuantConnect-inspired) - Note: This requires sector data
+    try:
+        from .strategies.sector_momentum import signal as sector_momentum_signal
+        # For sector momentum, we need to group by symbol and get sector data
+        # This is a simplified implementation - in practice would need sector mapping
+        sector_signals = sector_momentum_signal(d)
+        if not sector_signals.empty:
+            d = d.merge(sector_signals[['Signal', 'Confidence', 'Top_Sector', 'Sector_Momentum']],
+                       left_index=True, right_index=True, how='left', suffixes=('', '_SectorMomentum'))
+            # Rename to avoid conflicts
+            d['SectorMomentum_Signal'] = d['Signal'].fillna(0).astype(int)
+            d['SectorMomentum_Confidence'] = d['Confidence'].fillna(0)
+            d = d.drop(['Signal', 'Confidence', 'Top_Sector', 'Sector_Momentum'], axis=1, errors='ignore')
+        else:
+            d['SectorMomentum_Signal'] = 0
+            d['SectorMomentum_Confidence'] = 0.0
+    except Exception as e:
+        print(f"Warning: Sector Momentum strategy failed: {e}")
+        d['SectorMomentum_Signal'] = 0
+        d['SectorMomentum_Confidence'] = 0.0
+
     # RS_Leader_Flag: RS_ROC20 > 0 & >= rolling60 p80
     d['RS_p80_60'] = rolling_pctile(d['RS_ROC20'].fillna(0), 60, 80)
     d['RS_Leader_Flag'] = ((d['RS_ROC20'] > 0) & (d['RS_ROC20'] >= d['RS_p80_60'])).astype(int)

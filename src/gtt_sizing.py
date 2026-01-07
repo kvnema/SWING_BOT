@@ -444,24 +444,35 @@ def build_upstox_payload(row: dict, cfg: dict) -> dict:
          STOPLOSS_trigger_price, TARGET_trigger_price
     cfg: configuration dict (expects gtt.default_product and trailing flags)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     product = cfg.get('gtt', {}).get('default_product', 'D')
     trailing = cfg.get('gtt', {}).get('trailing_sl_enable', False)
     trailing_gap = cfg.get('gtt', {}).get('trailing_gap', None)
 
+    # Validate ENTRY trigger_type
+    entry_trigger_type = row.get('ENTRY_trigger_type', 'ABOVE')
+    if entry_trigger_type not in ['ABOVE', 'BELOW']:
+        logger.warning(f"Invalid ENTRY_trigger_type '{entry_trigger_type}' for {row.get('Symbol', 'Unknown')}, defaulting to 'ABOVE'")
+        entry_trigger_type = 'ABOVE'
+
     rules = []
-    # ENTRY
+    # ENTRY - must be ABOVE or BELOW
     rules.append({
         'strategy': 'ENTRY',
-        'trigger_type': row.get('ENTRY_trigger_type', 'ABOVE'),
+        'trigger_type': entry_trigger_type,
         'trigger_price': float(row.get('ENTRY_trigger_price', 0.0))
     })
-    # TARGET
+
+    # TARGET - must be IMMEDIATE
     rules.append({
         'strategy': 'TARGET',
         'trigger_type': 'IMMEDIATE',
         'trigger_price': float(row.get('TARGET_trigger_price', 0.0))
     })
-    # STOPLOSS
+
+    # STOPLOSS - must be IMMEDIATE
     stop_rule = {
         'strategy': 'STOPLOSS',
         'trigger_type': 'IMMEDIATE',
@@ -472,34 +483,84 @@ def build_upstox_payload(row: dict, cfg: dict) -> dict:
     rules.append(stop_rule)
 
     payload = {
-        'type': 'MULTIPLE',
         'quantity': int(row.get('Qty', 0)),
         'product': product,
         'instrument_token': row.get('InstrumentToken', ''),
         'transaction_type': 'BUY',
+        'type': 'MULTIPLE',  # Must be uppercase 'MULTIPLE' for multi-leg GTT
         'rules': rules
     }
+
+    logger.debug(f"Built GTT payload for {row.get('Symbol', 'Unknown')}: type={payload['type']}, entry_trigger={entry_trigger_type}")
     return payload
 
 
 def validate_upstox_payload(payload: dict) -> (bool, list):
-    """Validate minimal required fields for an Upstox GTT payload.
+    """Validate Upstox GTT payload against API requirements.
 
     Returns (ok, errors)
     """
     errs = []
+
+    # Required fields
     if not payload.get('instrument_token'):
         errs.append('missing instrument_token')
     if not payload.get('quantity') or int(payload.get('quantity', 0)) <= 0:
         errs.append('invalid quantity')
     if not payload.get('product'):
         errs.append('missing product')
+
+    # Type must be 'MULTIPLE' for multi-leg orders
+    if payload.get('type') != 'MULTIPLE':
+        errs.append("type must be 'MULTIPLE' for multi-leg GTT orders")
+
+    # Transaction type should be BUY for our use case
+    if payload.get('transaction_type') != 'BUY':
+        errs.append("transaction_type should be 'BUY' for entry orders")
+
     rules = payload.get('rules', [])
-    if not isinstance(rules, list) or len(rules) < 2:
-        errs.append('rules must be a list with at least ENTRY and STOP/TARGET')
+    if not isinstance(rules, list) or len(rules) < 3:
+        errs.append('rules must be a list with at least ENTRY, TARGET, and STOPLOSS')
     else:
+        # Check each rule
+        strategies = []
         for r in rules:
+            if not isinstance(r, dict):
+                errs.append('each rule must be a dict')
+                continue
+
+            strategy = r.get('strategy')
+            trigger_type = r.get('trigger_type')
+            trigger_price = r.get('trigger_price')
+
+            if not strategy:
+                errs.append('each rule requires strategy')
+                continue
+
+            strategies.append(strategy)
+
             if 'trigger_type' not in r or 'trigger_price' not in r:
-                errs.append('each rule requires trigger_type and trigger_price')
-                break
+                errs.append(f'rule {strategy} requires trigger_type and trigger_price')
+                continue
+
+            # Validate trigger types per strategy
+            if strategy == 'ENTRY':
+                if trigger_type not in ['ABOVE', 'BELOW']:
+                    errs.append(f"ENTRY trigger_type must be 'ABOVE' or 'BELOW', got '{trigger_type}'")
+            elif strategy in ['TARGET', 'STOPLOSS']:
+                if trigger_type != 'IMMEDIATE':
+                    errs.append(f"{strategy} trigger_type must be 'IMMEDIATE', got '{trigger_type}'")
+            else:
+                errs.append(f"unknown strategy '{strategy}'")
+
+            # Validate trigger price
+            if not isinstance(trigger_price, (int, float)) or trigger_price <= 0:
+                errs.append(f"{strategy} trigger_price must be positive number, got {trigger_price}")
+
+        # Check required strategies
+        required_strategies = {'ENTRY', 'TARGET', 'STOPLOSS'}
+        missing_strategies = required_strategies - set(strategies)
+        if missing_strategies:
+            errs.append(f"missing required strategies: {missing_strategies}")
+
     return (len(errs) == 0, errs)

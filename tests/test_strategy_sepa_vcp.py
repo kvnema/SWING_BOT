@@ -12,7 +12,7 @@ def make_trending_df(n=300, start=50.0):
     vol = np.ones(n) * 1000
     vol[-1] = 5000
     dates = pd.date_range(end=pd.Timestamp.today(), periods=n, freq='B')
-    return pd.DataFrame({'Date': dates, 'Open': close, 'High': high, 'Low': low, 'Close': close, 'Volume': vol})
+    return pd.DataFrame({'Date': dates, 'Open': close, 'High': high, 'Low': low, 'Close': close, 'Volume': vol, 'Symbol': 'TEST'})
 
 
 def test_sepa_and_vcp_signal_triggers_on_pristine_setup():

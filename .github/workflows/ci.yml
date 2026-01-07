@@ -1,0 +1,136 @@
+name: SWING_BOT E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 6 AM IST (12:30 AM UTC)
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of test to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - e2e
+        - unit
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-html pytest-json-report pytest-cov
+
+    - name: Create test data directory
+      run: mkdir -p data outputs
+
+    - name: Generate mock data for testing
+      run: |
+        python -c "
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime, timedelta
+
+        # Generate mock NIFTY50 data
+        dates = pd.date_range(datetime.now() - timedelta(days=365), datetime.now(), freq='D')
+        symbols = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS']
+
+        data = []
+        for symbol in symbols:
+            np.random.seed(hash(symbol) % 2**32)
+            base_price = {'RELIANCE.NS': 2500, 'TCS.NS': 3200, 'HDFCBANK.NS': 1600, 'ICICIBANK.NS': 900, 'INFY.NS': 1400}[symbol]
+            returns = np.random.normal(0.0005, 0.02, len(dates))
+            prices = base_price * np.exp(np.cumsum(returns))
+
+            for i, date in enumerate(dates):
+                data.append({
+                    'Date': date.strftime('%Y-%m-%d'),
+                    'Symbol': symbol,
+                    'Open': prices[i] * (1 + np.random.normal(0, 0.005)),
+                    'High': prices[i] * (1 + abs(np.random.normal(0, 0.01))),
+                    'Low': prices[i] * (1 - abs(np.random.normal(0, 0.01))),
+                    'Close': prices[i],
+                    'Volume': int(np.random.lognormal(13, 0.5))
+                })
+
+        df = pd.DataFrame(data)
+        df.to_csv('data/nifty50_data_today.csv', index=False)
+        print('Mock data generated successfully')
+        "
+
+    - name: Run unit tests
+      run: |
+        python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=html
+
+    - name: Run E2E tests
+      if: github.event.inputs.test_type != 'unit' || github.event_name != 'workflow_dispatch'
+      run: |
+        python src/cli.py run-e2e-tests --output-dir outputs/e2e_tests --verbose --mock-apis
+
+    - name: Run full-system test
+      if: github.event.inputs.test_type == 'full' || github.event_name != 'workflow_dispatch'
+      run: |
+        python src/cli.py run-full-test --output-dir outputs/full_test --verbose --mock-apis --performance-benchmark
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          outputs/
+          htmlcov/
+          coverage.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.python-version == '3.10'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "Tests failed - check the artifacts for detailed logs"
+        # Add notification logic here (e.g., send to Slack, Teams, etc.)
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Deploy to staging
+      run: |
+        echo "Deployment logic would go here"
+        # Add your deployment steps

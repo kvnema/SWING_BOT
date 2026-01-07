@@ -16,7 +16,7 @@ def make_squeeze_df(n=100):
     vol = np.ones(n) * 800
     vol[-1] = 2000
     dates = pd.date_range(end=pd.Timestamp.today(), periods=n, freq='B')
-    return pd.DataFrame({'Date': dates, 'Open': close, 'High': high, 'Low': low, 'Close': close, 'Volume': vol})
+    return pd.DataFrame({'Date': dates, 'Open': close, 'High': high, 'Low': low, 'Close': close, 'Volume': vol, 'Symbol': 'TEST'})
 
 
 def test_squeeze_breakout_flag_triggers():

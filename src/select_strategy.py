@@ -29,8 +29,18 @@ def select_best_strategy(df: pd.DataFrame, strategies: dict, cfg: dict, out_dir:
         res['trades'].to_csv(od / 'trades.csv', index=False)
         res['equity_curve'].to_csv(od / 'equity_curve.csv', index=False)
 
-    # FIXED HIERARCHY: Always use this priority order (no backtest-driven selection)
-    strategy_hierarchy = ['VCP', 'SEPA', 'Squeeze', 'Donchian', 'MR', 'AVWAP']
+    # FIXED HIERARCHY: Enhanced with QuantConnect-inspired strategies
+    strategy_hierarchy = [
+        'EnhancedMomentum',  # New: Trend strength weighted momentum
+        'DynamicBreakout',   # New: Adaptive breakout thresholds
+        'SectorMomentum',    # New: Sector rotation with momentum
+        'VCP',               # Volume Contraction Pattern
+        'SEPA',              # Stage-Enhanced Pullback Alert
+        'Squeeze',           # Bollinger-Keltner squeeze breakout
+        'Donchian',          # Channel breakout
+        'MR',                # Mean reversion
+        'AVWAP'              # Anchored VWAP
+    ]
 
     # Select strategy from hierarchy, preferring those with actual trades
     best = None

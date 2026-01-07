@@ -863,7 +863,221 @@ Self-improvement results are logged to:
 - `outputs/self_optimize/optimized_params.json` - Current parameters
 - `outputs/auto_test/test_history.json` - Daily performance history
 - `logs/daily_self_improve_YYYYMMDD.log` - Detailed execution logs
+## 🧪 Testing & Quality Assurance
 
+SWING_BOT includes a comprehensive end-to-end (E2E) testing framework to ensure system reliability and catch issues before production deployment.
+
+### E2E Testing Framework
+
+The E2E testing suite simulates complete daily trading cycles and validates all system components:
+
+#### Quick Start
+```bash
+# Run comprehensive E2E tests via CLI
+python -m src.cli run-e2e-tests --verbose
+
+# Run quick E2E test
+python run_e2e_tests.py --quick
+
+# Run comprehensive multi-scenario tests
+python run_e2e_tests.py --comprehensive --output-dir outputs/e2e_results
+```
+
+#### Test Coverage
+
+**Data Pipeline Tests:**
+- Historical data fetching and validation
+- Indicator calculations (RSI, MACD, Bollinger Bands, etc.)
+- Data preprocessing and quality checks
+
+**Signals & Strategy Tests:**
+- Signal generation for all strategies (SEPA, VCP, Donchian, etc.)
+- Composite scoring algorithm
+- Strategy selection logic
+
+**AI/ML Component Tests:**
+- Multi-agent RL sector coordination
+- LLM news summarization and sentiment analysis
+- Parameter optimization (Optuna-based)
+
+**Trading Logic Tests:**
+- GTT plan building and validation
+- Risk management and position sizing
+- Order execution simulation
+
+**Integration Tests:**
+- Full daily cycle orchestration
+- API mocking for external dependencies
+- Error handling and fallback mechanisms
+
+#### Test Scenarios
+
+**Market Regimes:**
+- Bullish markets (10%+ price increases)
+- Bearish markets (10%+ price decreases)
+- Sideways/choppy markets
+
+**Error Conditions:**
+- API failures and timeouts
+- Invalid data and missing symbols
+- Network connectivity issues
+- Rate limiting and API quotas
+
+**Performance Benchmarks:**
+- Data pipeline: <30 seconds
+- Signal generation: <15 seconds
+- Strategy selection: <60 seconds
+- Full E2E cycle: <5 minutes
+
+### Running Tests
+
+#### CLI Commands
+```bash
+# Run all E2E tests
+python -m src.cli run-e2e-tests
+
+# Run specific components
+python -m src.cli run-e2e-tests --components data signals rl
+
+# Test specific market regime
+python -m src.cli run-e2e-tests --regime bullish
+
+# Generate detailed HTML report
+python -m src.cli run-e2e-tests --generate-report --output-dir outputs/test_results
+```
+
+#### Direct Script Execution
+```bash
+# Quick test (focuses on critical components)
+python run_e2e_tests.py --quick --verbose
+
+# Comprehensive test (multiple scenarios)
+python run_e2e_tests.py --comprehensive --output-dir outputs/comprehensive_tests
+
+# Custom output directory
+python run_e2e_tests.py --quick --output-dir outputs/my_custom_tests
+```
+
+#### Pytest Direct Execution
+```bash
+# Run all E2E tests
+pytest tests/e2e_test.py -v
+
+# Run specific test class
+pytest tests/e2e_test.py::TestSwingBotE2E -v
+
+# Run with coverage
+pytest tests/e2e_test.py --cov=src --cov-report=html
+
+# Run performance benchmarks only
+pytest tests/e2e_test.py -k "performance" -v
+```
+
+### Test Results & Reports
+
+**Output Structure:**
+```
+outputs/e2e_tests/
+├── e2e_report.html          # Detailed HTML report
+├── e2e_results.json         # Test results (JSON)
+├── e2e_test_summary.json    # Executive summary
+├── e2e_benchmarks.json      # Performance metrics
+└── comprehensive_e2e_summary.json  # Multi-scenario results
+```
+
+**Report Contents:**
+- ✅ Test pass/fail status per component
+- 📊 Performance benchmarks and timing
+- 🚨 Detailed error logs and stack traces
+- 📈 Simulated PnL and risk metrics
+- 🎯 Component integration validation
+
+### Mock Data & APIs
+
+**Mock Components:**
+- NewsAPI responses with realistic sentiment scores
+- Upstox API with live quote simulation
+- Historical data generation with market-like volatility
+- Telegram notification mocking
+
+**Test Data:**
+- 5 core symbols: TITAN.NS, RELIANCE.NS, INFY.NS, HDFCBANK.NS, ITC.NS
+- 500+ days of historical data
+- Realistic market conditions and edge cases
+
+### CI/CD Integration
+
+Add to your CI pipeline:
+```yaml
+# GitHub Actions example
+- name: Run E2E Tests
+  run: |
+    python run_e2e_tests.py --quick --output-dir outputs/ci_tests
+
+- name: Upload Test Results
+  uses: actions/upload-artifact@v3
+  with:
+    name: e2e-test-results
+    path: outputs/ci_tests/
+```
+
+### Troubleshooting Tests
+
+**Live Trading Issues (Fixed in v2.1.0):**
+
+**GTT API Payload Errors (UDAPI1127/UDAPI1143):**
+- **Symptoms**: GTT order placement fails with API validation errors
+- **Root Cause**: Incorrect `type` field (should be `"MULTIPLE"`), wrong `trigger_type` values
+- **Fix**: Updated `gtt_sizing.py` with validation for:
+  - `type: "MULTIPLE"` for all GTT orders
+  - `trigger_type: "ABOVE"/"BELOW"` for ENTRY rules
+  - `trigger_type: "IMMEDIATE"` for TARGET/STOPLOSS rules
+- **Verification**: Check `outputs/logs/gtt_validation.log` for payload validation
+
+**Circuit Breaker Volatility Calculation:**
+- **Symptoms**: Circuit breaker triggers incorrectly or not at all
+- **Root Cause**: Using invalid `NSE_INDEX|Nifty 50` symbol for volatility data
+- **Fix**: Updated `cli.py` to use `NIFTYBEES.NS` ETF for reliable volatility calculation
+- **Verification**: Check logs for "Market volatility (NIFTYBEES): X.XXXX" messages
+
+**Live Trade Scan 'os' Variable Error:**
+- **Symptoms**: Live trade scanning fails with variable reference errors
+- **Root Cause**: Potential variable shadowing or import issues
+- **Fix**: Added comprehensive error handling in `live_trade_tracker.py` scan functions
+- **Verification**: Check `outputs/logs/live_trade_scan.log` for scan completion messages
+
+**Dashboard Data Staleness:**
+- **Symptoms**: Dashboard shows old GTT order data
+- **Root Cause**: Loading from outdated CSV files
+- **Fix**: Updated dashboard to prioritize `gtt_plan_live_reconciled.csv` and added real-time GTT status fetching
+- **Verification**: Dashboard shows "Live reconciled data" source and real-time order status
+
+**Common Issues:**
+- **API Rate Limits**: Tests use mocked APIs by default
+- **Slow Performance**: Reduce test data size or run component-specific tests
+- **Memory Issues**: Run tests individually or reduce parallel execution
+
+**Debug Mode:**
+```bash
+# Enable verbose logging
+python -m src.cli run-e2e-tests --verbose
+
+# Run with debug pytest
+pytest tests/e2e_test.py -v -s --tb=long
+```
+
+### Test Maintenance
+
+**Adding New Tests:**
+1. Add test methods to `TestSwingBotE2E` class
+2. Use descriptive names: `test_[component]_[scenario]_e2e`
+3. Include performance assertions
+4. Update mock data as needed
+
+**Mock Data Updates:**
+- Update `TestSwingBotE2E._generate_mock_*` methods
+- Ensure realistic market conditions
+- Test edge cases and error scenarios
 ## �🤝 Contributing
 
 ### Development Setup

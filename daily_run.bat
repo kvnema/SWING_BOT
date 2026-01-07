@@ -14,7 +14,7 @@ call .venv\Scripts\activate.bat
 
 REM Step 1: Run full EOD orchestration with live order placement
 echo Step 1: Running EOD Orchestration with Live Orders...
-python -m src.cli orchestrate-live --data-out outputs/daily_data.csv --place-gtt --confidence-threshold 0.20 --top 10
+python -m src.cli orchestrate-live --data-out outputs/daily_data.csv --place-gtt --confidence-threshold 0.42 --top 10
 
 REM Check if orchestration succeeded
 if %ERRORLEVEL% NEQ 0 (

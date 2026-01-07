@@ -68,3 +68,7 @@ opentelemetry-exporter-otlp>=1.20.0
 
 # Email notifications
 smtplib3>=0.1.0  # For SMTP email fallback
+# Web Dashboard
+streamlit>=1.28.0
+plotly>=5.17.0
+psutil>=5.9.0
