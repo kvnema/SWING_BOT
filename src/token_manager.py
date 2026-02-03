@@ -85,11 +85,22 @@ class UpstoxTokenManager:
     def refresh_token_via_oauth(self) -> Optional[str]:
         """
         Refresh token using OAuth flow.
-        Note: This requires manual intervention for authorization code.
+        Note: This requires manual intervention for authorization code if a
+        `UPSTOX_REFRESH_TOKEN` is not available. When authorization returns a
+        refresh_token, we persist it to `.env` for future automatic refreshes.
         """
-        logger.info("Token refresh requires manual authorization code")
+        logger.info("Attempting token refresh via OAuth flow")
 
-        # Generate authorization URL
+        # If we already have a refresh token, try to use it first
+        refresh_token = os.getenv('UPSTOX_REFRESH_TOKEN')
+        if refresh_token:
+            logger.info('Found refresh token in environment; attempting refresh grant')
+            new_token = self.refresh_token_using_refresh_token(refresh_token)
+            if new_token:
+                return new_token
+            logger.warning('Refresh token grant failed; falling back to authorization code flow')
+
+        # Generate authorization URL for manual exchange
         auth_url = (
             "https://api.upstox.com/v2/login/authorization/dialog?"
             f"client_id={self.api_key}&"
@@ -99,16 +110,23 @@ class UpstoxTokenManager:
             "state=token_refresh"
         )
 
-        print("=" * 60)
-        print("🔄 UPSTOX TOKEN REFRESH REQUIRED")
-        print("=" * 60)
-        print("1. Open this URL in your browser:")
-        print(f"   {auth_url}")
-        print()
-        print("2. Log in to your Upstox account")
-        print("3. Grant permission for the app")
-        print("4. Copy the authorization code from the redirect URL")
-        print()
+        def print_safe(s: str):
+            try:
+                print(s)
+            except UnicodeEncodeError:
+                # Fallback to replace unsupported characters
+                print(s.encode('utf-8', errors='replace').decode('utf-8', errors='replace'))
+
+        print_safe("=" * 60)
+        print_safe("UPSTOX TOKEN REFRESH REQUIRED")
+        print_safe("=" * 60)
+        print_safe("1. Open this URL in your browser:")
+        print_safe(f"   {auth_url}")
+        print_safe("")
+        print_safe("2. Log in to your Upstox account")
+        print_safe("3. Grant permission for the app")
+        print_safe("4. Copy the authorization code from the redirect URL")
+        print_safe("")
 
         auth_code = input("Enter the authorization code: ").strip()
 
@@ -133,24 +151,42 @@ class UpstoxTokenManager:
             if response.status_code == 200:
                 token_data = response.json()
                 new_token = token_data.get('access_token')
+                refresh_token = token_data.get('refresh_token')
                 if new_token:
-                    logger.info("Successfully obtained new access token")
+                    logger.info("Successfully obtained new access token via auth code")
+                    # Persist refresh token if provided
+                    if refresh_token:
+                        try:
+                            set_key(self.env_file, 'UPSTOX_REFRESH_TOKEN', refresh_token)
+                            logger.info('Persisted UPSTOX_REFRESH_TOKEN to .env')
+                        except Exception as e:
+                            logger.warning(f'Failed to persist refresh token: {e}')
                     return new_token
                 else:
                     logger.error("No access_token in response")
             else:
-                logger.error(f"Token exchange failed: {response.text}")
+                # Detect known Upstox error codes to provide clearer guidance
+                if isinstance(response.text, str) and 'UDAPI100069' in response.text:
+                    logger.error("Token exchange failed: UDAPI100069 — Check your 'client_id' and 'client_secret'.")
+                else:
+                    logger.error(f"Token exchange failed: {response.text}")
         except Exception as e:
             logger.error(f"Token exchange error: {e}")
 
         return None
 
-    def update_token_in_env(self, new_token: str):
-        """Update the access token in the .env file."""
+    def update_token_in_env(self, new_token: str, refresh_token: Optional[str] = None):
+        """Update the access token (and optionally refresh token) in the .env file."""
         try:
             set_key(self.env_file, 'UPSTOX_ACCESS_TOKEN', new_token)
             self.access_token = new_token
             logger.info("Updated access token in .env file")
+            if refresh_token:
+                try:
+                    set_key(self.env_file, 'UPSTOX_REFRESH_TOKEN', refresh_token)
+                    logger.info('Updated refresh token in .env file')
+                except Exception as e:
+                    logger.warning(f'Failed to persist refresh token: {e}')
         except Exception as e:
             logger.error(f"Failed to update .env file: {e}")
             raise
@@ -181,6 +217,35 @@ class UpstoxTokenManager:
                 logger.error(f"Failed to load token status: {e}")
         return {}
 
+    def refresh_token_using_refresh_token(self, refresh_token: str) -> Optional[str]:
+        """Use refresh token to obtain a new access token programmatically."""
+        token_url = "https://api.upstox.com/v2/login/authorization/token"
+        data = {
+            'refresh_token': refresh_token,
+            'client_id': self.api_key,
+            'client_secret': self.api_secret,
+            'grant_type': 'refresh_token'
+        }
+        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
+        try:
+            response = requests.post(token_url, data=data, headers=headers, timeout=30)
+            if response.status_code == 200:
+                token_data = response.json()
+                new_token = token_data.get('access_token')
+                new_refresh = token_data.get('refresh_token')
+                if new_token:
+                    # Persist both tokens
+                    self.update_token_in_env(new_token, refresh_token=new_refresh or refresh_token)
+                    logger.info('Refresh-token grant obtained new token')
+                    return new_token
+                else:
+                    logger.error('No access_token in refresh response')
+            else:
+                logger.error(f'Refresh grant failed: {response.text}')
+        except Exception as e:
+            logger.error(f'Refresh grant error: {e}')
+        return None
+
     def check_and_refresh_token(self, force_refresh: bool = False) -> bool:
         """
         Check token status and refresh if needed.
@@ -202,23 +267,35 @@ class UpstoxTokenManager:
         if force_refresh or self.is_token_expired(self.access_token):
             logger.info("Token expired or expiring soon, refreshing...")
 
-            # Attempt to refresh token
-            new_token = self.refresh_token_via_oauth()
+            # Attempt to refresh using stored refresh token (preferred)
+            refresh_token = os.getenv('UPSTOX_REFRESH_TOKEN')
+            if refresh_token:
+                logger.info('Attempting refresh using UPSTOX_REFRESH_TOKEN')
+                new_token = self.refresh_token_using_refresh_token(refresh_token)
+            else:
+                new_token = None
+
+            # If refresh grant did not yield a token, fall back to user-driven oauth
+            if not new_token:
+                new_token = self.refresh_token_via_oauth()
 
             if new_token:
-                # Update environment
-                self.update_token_in_env(new_token)
+                # Ensure we persist and use the new access token
+                try:
+                    self.update_token_in_env(new_token)
+                except Exception:
+                    logger.warning('Failed to persist new access token to .env')
 
                 # Test new token
                 if self.test_token_validity(new_token):
-                    logger.info("✅ Token refresh successful")
+                    logger.info("Token refresh successful")
                     self.save_token_status()
                     return True
                 else:
-                    logger.error("❌ New token is invalid")
+                    logger.error("New token is invalid")
                     return False
             else:
-                logger.error("❌ Token refresh failed")
+                logger.error("Token refresh failed")
                 return False
         else:
             # Token is still valid
