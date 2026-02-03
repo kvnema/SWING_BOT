@@ -1,0 +1,88 @@
+name: Upstox Token Refresh
+
+on:
+  schedule:
+    - cron: "0 1 * * *"   # daily at 01:00 UTC (adjust as needed)
+  workflow_dispatch: {}   # allow manual runs
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      UPSTOX_API_KEY: ${{ secrets.UPSTOX_API_KEY }}
+      UPSTOX_API_SECRET: ${{ secrets.UPSTOX_API_SECRET }}
+      UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
+      UPSTOX_REFRESH_TOKEN: ${{ secrets.UPSTOX_REFRESH_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Run Upstox Token Manager (auto)
+        id: run_manager
+        run: |
+          set -e
+          # run token manager in "auto" mode; it will attempt refresh and persist to .env
+          python -m src.token_manager --auto || true
+
+      - name: Dump tokens to file (secure, no stdout)
+        id: dump_tokens
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from dotenv import dotenv_values
+          vals = dotenv_values('.env')
+          out = {'access': vals.get('UPSTOX_ACCESS_TOKEN',''), 'refresh': vals.get('UPSTOX_REFRESH_TOKEN','')}
+          Path('tokens.json').write_text(json.dumps(out))
+          PY
+
+      - name: Read tokens into outputs
+        id: tokens
+        run: |
+          access=$(jq -r '.access' tokens.json)
+          refresh=$(jq -r '.refresh' tokens.json)
+          echo "access=$access" >> $GITHUB_OUTPUT
+          echo "refresh=$refresh" >> $GITHUB_OUTPUT
+
+      # Optional: Update repo secrets automatically (requires REPO_PAT set in repo secrets)
+      - name: Update secret: UPSTOX_ACCESS_TOKEN
+        if: ${{ secrets.REPO_PAT }}
+        uses: peter-evans/create-or-update-secret@v3
+        with:
+          secret: UPSTOX_ACCESS_TOKEN
+          repository: ${{ github.repository }}
+          value: ${{ steps.tokens.outputs.access }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
+      - name: Update secret: UPSTOX_REFRESH_TOKEN
+        if: ${{ secrets.REPO_PAT }}
+        uses: peter-evans/create-or-update-secret@v3
+        with:
+          secret: UPSTOX_REFRESH_TOKEN
+          repository: ${{ github.repository }}
+          value: ${{ steps.tokens.outputs.refresh }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
+      - name: Create issue if refresh failed
+        if: ${{ failure() }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Upstox token refresh failed',
+              body: 'Automatic Upstox token refresh failed. Check workflow logs for details.'
+            })
