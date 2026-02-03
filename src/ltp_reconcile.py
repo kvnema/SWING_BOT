@@ -44,6 +44,32 @@ def fetch_live_quotes(instrument_tokens: List[str], access_token: str, broker: s
         return pd.DataFrame(columns=['instrument_token', 'symbol', 'last_price', 'timestamp', 'ohlc'])
 
     if broker.lower() == 'upstox':
+        # Prefer WS cache when available (fast, real-time). Fallback to REST if not.
+        try:
+            from .upstox_ws import get_upstox_ws
+            ws = get_upstox_ws(access_token)
+            if ws and getattr(ws, 'is_connected', False):
+                snapshot = ws.get_snapshot(instrument_tokens)
+                if snapshot:
+                    # Build DataFrame from snapshot
+                    rows = []
+                    for token in instrument_tokens:
+                        q = snapshot.get(token)
+                        if q:
+                            rows.append({
+                                'instrument_token': token,
+                                'symbol': q.get('symbol', ''),
+                                'last_price': q.get('last_price', 0.0),
+                                'timestamp': q.get('timestamp', ''),
+                                'ohlc': q.get('ohlc', {})
+                            })
+                    if rows:
+                        import pandas as _pd
+                        df = _pd.DataFrame(rows)
+                        return df
+        except Exception as e:
+            logger.debug(f"Upstox WS lookup failed: {e}")
+
         return _fetch_upstox_quotes(instrument_tokens, access_token)
     elif broker.lower() == 'icici':
         return _fetch_icici_quotes(instrument_tokens, access_token)
