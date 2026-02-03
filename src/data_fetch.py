@@ -8,6 +8,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Tuple, Optional
 import json
+import threading
 from pathlib import Path
 
 # Import centralized configuration
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 # Cache for API responses to avoid redundant calls
 _api_cache: Dict[str, Dict] = {}
 _cache_file = Path('data/api_cache.json')
+_cache_lock = threading.Lock()
 
 def load_instrument_keys() -> Dict[str, str]:
     """Load instrument keys from artifacts/universe/instrument_keys.json if available, fallback to config."""
@@ -52,21 +54,25 @@ def load_instrument_keys() -> Dict[str, str]:
 def _load_cache() -> Dict[str, Dict]:
     """Load API response cache from disk."""
     global _api_cache
-    if _cache_file.exists():
-        try:
-            with open(_cache_file, 'r') as f:
-                _api_cache = json.load(f)
-        except Exception as e:
-            logger.warning(f"Failed to load cache: {e}")
-            _api_cache = {}
-    return _api_cache
+    with _cache_lock:
+        if _cache_file.exists():
+            try:
+                with open(_cache_file, 'r') as f:
+                    _api_cache = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load cache: {e}")
+                _api_cache = {}
+        return _api_cache
 
 def _save_cache():
     """Save API response cache to disk."""
+    with _cache_lock:
+        cache_copy = _api_cache.copy()
+    
     try:
         _cache_file.parent.mkdir(exist_ok=True)
         with open(_cache_file, 'w') as f:
-            json.dump(_api_cache, f, indent=2)
+            json.dump(cache_copy, f, indent=2)
     except Exception as e:
         logger.warning(f"Failed to save cache: {e}")
 
@@ -75,12 +81,13 @@ def _make_api_request(url: str, headers: Dict[str, str], max_retries: int = MAX_
     cache_key = url
 
     # Check cache first
-    if cache_key in _api_cache:
-        cached_data = _api_cache[cache_key]
-        cache_time = datetime.fromisoformat(cached_data.get('timestamp', '2000-01-01'))
-        if (datetime.now() - cache_time).days < 1:  # Cache for 1 day
-            logger.debug(f"Using cached data for {url}")
-            return cached_data['data']
+    with _cache_lock:
+        if cache_key in _api_cache:
+            cached_data = _api_cache[cache_key]
+            cache_time = datetime.fromisoformat(cached_data.get('timestamp', '2000-01-01'))
+            if (datetime.now() - cache_time).days < 1:  # Cache for 1 day
+                logger.debug(f"Using cached data for {url}")
+                return cached_data['data']
 
     for attempt in range(max_retries):
         try:
@@ -89,11 +96,12 @@ def _make_api_request(url: str, headers: Dict[str, str], max_retries: int = MAX_
             if response.status_code == 200:
                 data = response.json()
                 # Cache successful response
-                _api_cache[cache_key] = {
-                    'timestamp': datetime.now().isoformat(),
-                    'data': data
-                }
-                _save_cache()
+                with _cache_lock:
+                    _api_cache[cache_key] = {
+                        'timestamp': datetime.now().isoformat(),
+                        'data': data
+                    }
+                    _save_cache()
                 return data
             elif response.status_code == 429:  # Rate limited
                 wait_time = (2 ** attempt) * RETRY_BACKOFF_FACTOR
@@ -172,6 +180,18 @@ def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str], bro
                     return symbol, None, "NO_DATA"
                 df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
                 
+        elif broker.lower() == 'angel':
+            # Angel One support removed; default to Upstox behavior
+            logger.warning("Angel One support removed; using Upstox for historical data by default")
+            url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}/{start_date.strftime('%Y-%m-%d')}"
+            data = _make_api_request(url, headers)
+            if not data:
+                return symbol, None, "API_ERROR"
+            candles = data.get('data', {}).get('candles', [])
+            if not candles:
+                return symbol, None, "NO_DATA"
+            df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+                
         else:
             return symbol, None, f"UNSUPPORTED_BROKER: {broker}"
 
@@ -190,6 +210,7 @@ def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str], bro
 def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/nifty50_indicators_renamed.csv', include_etfs: bool = True, max_workers: int = 8, broker: str = 'upstox') -> None:
     """
     Optimized data fetching with parallel processing, caching, and error handling.
+    Includes auto-refetch for data quality gaps >5%.
 
     Args:
         days: Number of days of historical data to fetch
@@ -229,6 +250,26 @@ def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/
                 'Authorization': f'Bearer {ACCESS_TOKEN}',
                 'Accept': 'application/json'
             }
+    elif broker.lower() == 'angel':
+        from .angel_one_api import get_angel_api
+        try:
+            api = get_angel_api()
+            if not api:
+                logger.warning("Angel One API not available, falling back to Upstox")
+                broker = 'upstox'  # Fallback
+                headers = {
+                    'Authorization': f'Bearer {ACCESS_TOKEN}',
+                    'Accept': 'application/json'
+                }
+            else:
+                headers = None  # Angel One uses direct API calls
+        except Exception as e:
+            logger.warning(f"Angel One API initialization failed: {e}, falling back to Upstox")
+            broker = 'upstox'  # Fallback
+            headers = {
+                'Authorization': f'Bearer {ACCESS_TOKEN}',
+                'Accept': 'application/json'
+            }
     else:
         raise ValueError(f"Unsupported broker: {broker}")
 
@@ -244,36 +285,22 @@ def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/
     instruments_to_fetch = [sym for sym in ALL_INSTRUMENTS if sym.replace('.NS', '') in available_symbols]
     
     logger.info(f"Fetching {len(instruments_to_fetch)} instruments from available universe (out of {len(ALL_INSTRUMENTS)} total)")
-    if len(instruments_to_fetch) == 0:
-        raise RuntimeError("No instruments available in universe file. Run ETF universe update first.")
 
-    all_data = []
-    failed_instruments = []
+    # Initial fetch
+    all_data, failed_instruments = _perform_parallel_fetch(instruments_to_fetch, days, headers, broker, max_workers)
 
-    # Parallel fetching
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_symbol = {
-            executor.submit(fetch_single_instrument, symbol, days, headers, broker): symbol
-            for symbol in instruments_to_fetch
-        }
+    # Check for data quality gaps and auto-refetch if needed
+    if all_data:
+        gap_analysis = _analyze_data_gaps(all_data, instruments_to_fetch)
+        if gap_analysis['max_gap_pct'] > 5.0:
+            logger.warning(f"Data quality gaps detected (max {gap_analysis['max_gap_pct']:.1f}%), auto-refetching missing data...")
+            all_data, failed_instruments = _auto_refetch_missing_data(
+                all_data, failed_instruments, instruments_to_fetch, 
+                days, headers, broker, max_workers, gap_analysis
+            )
 
-        # Process completed tasks
-        for future in as_completed(future_to_symbol):
-            symbol = future_to_symbol[future]
-            try:
-                symbol_result, df_result, status = future.result()
-
-                if df_result is not None and status == "SUCCESS":
-                    all_data.append(df_result)
-                    logger.info(f"✓ {symbol}: SUCCESS")
-                else:
-                    failed_instruments.append((symbol, status))
-                    logger.warning(f"✗ {symbol}: {status}")
-
-            except Exception as e:
-                failed_instruments.append((symbol, f"THREAD_ERROR: {str(e)}"))
-                logger.error(f"Thread error for {symbol}: {str(e)}")
+    if not all_data:
+        raise RuntimeError("Failed to fetch data for any instruments. Check API credentials and network.")
 
     # Log summary
     success_count = len(all_data)
@@ -286,9 +313,6 @@ def fetch_nifty50_data(days: int = DEFAULT_LOOKBACK_DAYS, out_path: str = 'data/
             logger.warning(f"  {symbol}: {reason}")
         if len(failed_instruments) > 10:
             logger.warning(f"  ... and {len(failed_instruments) - 10} more")
-
-    if success_count == 0:
-        raise RuntimeError("Failed to fetch data for any instruments.")
 
     # Combine all data
     logger.info("Combining and processing data...")
@@ -610,6 +634,36 @@ def fetch_market_index_data(symbol: str = 'NIFTYBEES.NS', days: int = 400, broke
             'Authorization': f'Bearer {ACCESS_TOKEN}',
             'Accept': 'application/json'
         }
+    elif broker.lower() == 'icici':
+        from .icici_api import ICICIDirectAPI
+        api = ICICIDirectAPI()
+        if not api.access_token:
+            raise ValueError("ICICI API not authenticated, falling back to Upstox")
+            # Fallback to Upstox
+            if not ACCESS_TOKEN:
+                raise ValueError("UPSTOX_ACCESS_TOKEN not set in .env")
+            headers = {
+                'Authorization': f'Bearer {ACCESS_TOKEN}',
+                'Accept': 'application/json'
+            }
+            broker = 'upstox'  # Force fallback
+        else:
+            headers = None  # ICICI uses different API structure
+    elif broker.lower() == 'angel':
+        from .angel_one_api import get_angel_api
+        api = get_angel_api()
+        if not api:
+            raise ValueError("Angel One API not authenticated, falling back to Upstox")
+            # Fallback to Upstox
+            if not ACCESS_TOKEN:
+                raise ValueError("UPSTOX_ACCESS_TOKEN not set in .env")
+            headers = {
+                'Authorization': f'Bearer {ACCESS_TOKEN}',
+                'Accept': 'application/json'
+            }
+            broker = 'upstox'  # Force fallback
+        else:
+            headers = None  # Angel One uses different API structure
     else:
         raise ValueError(f"Unsupported broker for index data: {broker}")
 
@@ -625,35 +679,60 @@ def fetch_market_index_data(symbol: str = 'NIFTYBEES.NS', days: int = 400, broke
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
 
-    # Fetch data from Upstox API - try daily data first, fallback to minute data
-    # Try daily endpoint first
-    url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}"
-    params = {
-        'from_date': start_date.strftime('%Y-%m-%d'),
-        'to_date': end_date.strftime('%Y-%m-%d')
-    }
-
-    logger.info(f"Fetching data from {start_date.date()} to {end_date.date()}")
-
+    # Fetch data based on broker
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=30)
-        response.raise_for_status()
+        if broker.lower() == 'upstox':
+            # Try daily endpoint first
+            url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}"
+            params = {
+                'from_date': start_date.strftime('%Y-%m-%d'),
+                'to_date': end_date.strftime('%Y-%m-%d')
+            }
 
-        data = response.json()
-        if 'data' not in data or not data['data']:
-            logger.warning(f"No daily data returned for {symbol}, trying minute data")
-            # Fallback to minute data
-            url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/1minute/{end_date.strftime('%Y-%m-%d')}"
+            logger.info(f"Fetching data from {start_date.date()} to {end_date.date()}")
+
             response = requests.get(url, headers=headers, params=params, timeout=30)
             response.raise_for_status()
+
             data = response.json()
             if 'data' not in data or not data['data']:
+                logger.warning(f"No daily data returned for {symbol}, trying minute data")
+                # Fallback to minute data
+                url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/1minute/{end_date.strftime('%Y-%m-%d')}"
+                response = requests.get(url, headers=headers, params=params, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                if 'data' not in data or not data['data']:
+                    logger.warning(f"No data returned for {symbol}")
+                    return pd.DataFrame()
+                    
+            # Convert to DataFrame
+            candles = data['data']['candles']
+            df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'unknown'])
+            
+        elif broker.lower() == 'icici':
+            # ICICI API
+            candles = api.get_historical_data(instrument_key, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            if not candles:
                 logger.warning(f"No data returned for {symbol}")
                 return pd.DataFrame()
-
-        # Convert to DataFrame
-        candles = data['data']['candles']
-        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'unknown'])
+            df = pd.DataFrame(candles)
+            # ICICI returns different column names, normalize them
+            if 'datetime' in df.columns:
+                df = df.rename(columns={'datetime': 'timestamp'})
+            if 'vol' in df.columns:
+                df = df.rename(columns={'vol': 'volume'})
+                
+        elif broker.lower() == 'angel':
+            # Angel One API
+            df = api.get_historical_data(instrument_key, 'NSE', 'ONE_DAY', 
+                                       start_date.strftime('%Y-%m-%d'), 
+                                       end_date.strftime('%Y-%m-%d'))
+            if df.empty:
+                logger.warning(f"No data returned for {symbol}")
+                return pd.DataFrame()
+            # Angel One returns Date column, convert to timestamp for consistency
+            df['timestamp'] = pd.to_datetime(df['Date'])
 
         # Process timestamps
         df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -767,3 +846,250 @@ def calculate_market_regime(symbol: str = 'NIFTYBEES.NS', days: int = 400, broke
 
 if __name__ == "__main__":
     fetch_nifty50_data()
+
+
+def _perform_parallel_fetch(instruments_to_fetch, days, headers, broker, max_workers):
+    """Perform parallel data fetching and return results."""
+    all_data = []
+    failed_instruments = []
+
+    # Parallel fetching
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_symbol = {
+            executor.submit(fetch_single_instrument, symbol, days, headers, broker): symbol
+            for symbol in instruments_to_fetch
+        }
+
+        # Process completed tasks
+        for future in as_completed(future_to_symbol):
+            symbol = future_to_symbol[future]
+            try:
+                symbol_result, df_result, status = future.result()
+
+                if df_result is not None and status == "SUCCESS":
+                    all_data.append(df_result)
+                    logger.info(f"✓ {symbol}: SUCCESS")
+                else:
+                    failed_instruments.append((symbol, status))
+                    logger.warning(f"✗ {symbol}: {status}")
+
+            except Exception as e:
+                failed_instruments.append((symbol, f"THREAD_ERROR: {str(e)}"))
+                logger.error(f"Thread error for {symbol}: {str(e)}")
+
+    return all_data, failed_instruments
+
+
+def _analyze_data_gaps(all_data, instruments_to_fetch):
+    """Analyze data for gaps and quality issues."""
+    if not all_data:
+        return {'max_gap_pct': 100.0, 'gaps_by_symbol': {}}
+
+    # Combine data to analyze
+    df_all = pd.concat(all_data, ignore_index=True)
+    df_all['Date'] = pd.to_datetime(df_all['Date']).dt.date
+
+    # Expected date range
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=30)  # Check last 30 days for gaps
+    expected_dates = pd.date_range(start_date, end_date, freq='D')
+    expected_trading_dates = expected_dates[expected_dates.weekday < 5]  # Mon-Fri
+
+    gaps_by_symbol = {}
+    max_gap_pct = 0.0
+
+    for symbol in df_all['Symbol'].unique():
+        symbol_data = df_all[df_all['Symbol'] == symbol]
+        symbol_dates = set(symbol_data['Date'])
+        expected_for_symbol = set(expected_trading_dates.date)
+
+        missing_dates = expected_for_symbol - symbol_dates
+        gap_pct = (len(missing_dates) / len(expected_for_symbol)) * 100 if expected_for_symbol else 0
+
+        gaps_by_symbol[symbol] = {
+            'gap_pct': gap_pct,
+            'missing_dates': len(missing_dates),
+            'total_expected': len(expected_for_symbol)
+        }
+
+        max_gap_pct = max(max_gap_pct, gap_pct)
+
+    return {
+        'max_gap_pct': max_gap_pct,
+        'gaps_by_symbol': gaps_by_symbol,
+        'symbols_with_gaps': [s for s, g in gaps_by_symbol.items() if g['gap_pct'] > 5.0]
+    }
+
+
+def _auto_refetch_missing_data(all_data, failed_instruments, instruments_to_fetch, days, headers, broker, max_workers, gap_analysis):
+    """Auto-refetch data for symbols with quality gaps >5%."""
+    symbols_to_refetch = gap_analysis.get('symbols_with_gaps', [])
+
+    if not symbols_to_refetch:
+        logger.info("No symbols require auto-refetch (all gaps ≤5%)")
+        return all_data, failed_instruments
+
+    logger.info(f"Auto-refetching {len(symbols_to_refetch)} symbols with data gaps >5%")
+
+    # Remove old data for symbols being refetched
+    symbols_to_refetch_set = set(symbols_to_refetch)
+    filtered_data = [df for df in all_data if df['Symbol'].iloc[0] not in symbols_to_refetch_set]
+
+    # Refetch with extended lookback for better quality
+    extended_days = min(days * 2, 1000)  # Double lookback, max 1000 days
+    refetch_data, refetch_failed = _perform_parallel_fetch(
+        symbols_to_refetch, extended_days, headers, broker, max_workers
+    )
+
+    # Combine results
+    combined_data = filtered_data + refetch_data
+    combined_failed = [f for f in failed_instruments if f[0] not in symbols_to_refetch_set] + refetch_failed
+
+    logger.info(f"Auto-refetch complete: {len(refetch_data)} symbols refetched, {len(refetch_failed)} still failed")
+
+    return combined_data, combined_failed
+
+
+def validate_data_completeness(symbols: List[str], days_requested: int, broker: str = 'upstox', sample_size: int = 10) -> Dict[str, any]:
+    """
+    Validate historical data completeness for a sample of symbols.
+    
+    Args:
+        symbols: List of symbols to check
+        days_requested: Number of days requested
+        broker: Broker API to use
+        sample_size: Number of symbols to sample for validation
+        
+    Returns:
+        Dict with completeness statistics and warnings
+    """
+    from .diagnose_upstox_completeness import UpstoxCompletenessDiagnostic
+    
+    logger.info(f"Validating data completeness for {min(sample_size, len(symbols))} symbols...")
+    
+    diagnostic = UpstoxCompletenessDiagnostic()
+    sample_symbols = symbols[:sample_size] if len(symbols) > sample_size else symbols
+    
+    results = diagnostic.run_diagnostic(
+        days=days_requested,
+        sample_size=len(sample_symbols),
+        output_path=None,  # Don't save file
+        rate_limit=0.1,    # Faster for validation
+        mock=False
+    )
+    
+    # Calculate summary stats
+    valid_results = [r for r in results.values() if r['status'] not in ['API_ERROR_400', 'ERROR']]
+    if valid_results:
+        avg_completeness = sum(r['completeness_pct'] for r in valid_results) / len(valid_results)
+        full_count = sum(1 for r in valid_results if r['status'] == 'FULL')
+        limited_count = sum(1 for r in valid_results if r['status'] == 'LIMITED')
+        error_count = len(results) - len(valid_results)
+        
+        completeness_ok = avg_completeness >= 90.0
+        
+        summary = {
+            'average_completeness': avg_completeness,
+            'full_data_symbols': full_count,
+            'limited_data_symbols': limited_count,
+            'error_symbols': error_count,
+            'total_tested': len(results),
+            'completeness_ok': completeness_ok,
+            'warning_message': None if completeness_ok else 
+                f"⚠️ Data completeness is low ({avg_completeness:.1f}%). Backtesting may be unreliable."
+        }
+        
+        if not completeness_ok:
+            logger.warning(summary['warning_message'])
+        
+        return summary
+    else:
+        logger.error("No valid data completeness results obtained")
+        return {
+            'average_completeness': 0.0,
+            'full_data_symbols': 0,
+            'limited_data_symbols': 0,
+            'error_symbols': len(results),
+            'total_tested': len(results),
+            'completeness_ok': False,
+            'warning_message': "❌ Unable to validate data completeness. API may be unavailable."
+        }
+
+
+def validate_candle_completeness(symbols: List[str], timeframes: List[str], days_requested: int, 
+                                include_options: bool = False, sample_size: int = 10) -> Dict[str, any]:
+    """
+    Validate candle data completeness across multiple timeframes.
+    
+    Args:
+        symbols: List of symbols to check
+        timeframes: List of timeframes to test
+        days_requested: Number of days requested
+        include_options: Whether to include options data validation
+        sample_size: Number of symbols to sample for validation
+        
+    Returns:
+        Dict with completeness statistics and warnings
+    """
+    from .diagnose_candle_completeness import CandleCompletenessDiagnostic
+    
+    logger.info(f"Validating candle completeness for {min(sample_size, len(symbols))} symbols across {len(timeframes)} timeframes...")
+    
+    diagnostic = CandleCompletenessDiagnostic()
+    sample_symbols = symbols[:sample_size] if len(symbols) > sample_size else symbols
+    
+    results = diagnostic.run_diagnostic(
+        timeframes=timeframes,
+        days=days_requested,
+        sample_size=len(sample_symbols),
+        output_path=None,  # Don't save file
+        rate_limit=0.1,    # Faster for validation
+        include_options=include_options,
+        mock=False
+    )
+    
+    # Calculate summary stats
+    valid_results = [r for r in results.values() if r['status'] not in ['API_ERROR_400', 'ERROR', 'NO_DATA']]
+    if valid_results:
+        avg_completeness = sum(r['completeness_pct'] for r in valid_results) / len(valid_results)
+        full_count = sum(1 for r in valid_results if r['status'] == 'FULL')
+        limited_count = sum(1 for r in valid_results if r['status'] == 'LIMITED')
+        error_count = len(results) - len(valid_results)
+        
+        # Separate stats for candles vs options
+        candle_results = [r for r in valid_results if r['data_type'] == 'candle']
+        options_results = [r for r in valid_results if r['data_type'] == 'options']
+        
+        completeness_ok = avg_completeness >= 90.0
+        
+        summary = {
+            'average_completeness': avg_completeness,
+            'candle_completeness': sum(r['completeness_pct'] for r in candle_results) / len(candle_results) if candle_results else 0.0,
+            'options_completeness': sum(r['completeness_pct'] for r in options_results) / len(options_results) if options_results else 0.0,
+            'full_data_tests': full_count,
+            'limited_data_tests': limited_count,
+            'error_tests': error_count,
+            'total_tested': len(results),
+            'completeness_ok': completeness_ok,
+            'warning_message': None if completeness_ok else 
+                f"⚠️ Data completeness is low ({avg_completeness:.1f}%). Backtesting may be unreliable."
+        }
+        
+        if not completeness_ok:
+            logger.warning(summary['warning_message'])
+        
+        return summary
+    else:
+        logger.error("No valid candle completeness results obtained")
+        return {
+            'average_completeness': 0.0,
+            'candle_completeness': 0.0,
+            'options_completeness': 0.0,
+            'full_data_tests': 0,
+            'limited_data_tests': 0,
+            'error_tests': len(results),
+            'total_tested': len(results),
+            'completeness_ok': False,
+            'warning_message': "❌ Unable to validate candle completeness. API may be unavailable."
+        }

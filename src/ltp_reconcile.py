@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LTPParams:
     """Parameters for LTP reconciliation."""
     tick: float = 0.05                   # NSE EQ tick size
-    max_entry_ltppct: float = 0.02       # 2% max diff allowed vs LTP
+    max_entry_ltppct: float = 0.01       # 1% max diff allowed vs LTP (tightened from 2%)
     adjust_mode: str = "soft"            # "soft"=auto-adjust, "strict"=fail-fast
     timeframe_base: str = "1d"           # ensure we reconcile against same TF as plan
 

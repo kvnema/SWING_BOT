@@ -76,14 +76,42 @@ def place_gtt_with_retries(access_token: str, payload: Dict[str, Any], dry_run: 
 
 
 def _check_edis_for_symbol(symbol: str, cfg: Dict[str, Any]) -> bool:
-    """Placeholder EDIS check: returns True if env var UPSTOX_EDIS_GRANTED=1 or cfg allows it.
+    """Enhanced EDIS check for sell orders with proper validation.
 
-    Real implementations should call Upstox API or check account settings.
+    For BUY orders, EDIS is not required.
+    For SELL orders, checks account authorization status.
+
+    Real implementations should:
+    1. Check Upstox API for EDIS authorization status
+    2. Verify pledge status for the specific symbol
+    3. Handle authorization prompts if needed
+
+    Args:
+        symbol: Stock symbol to check
+        cfg: Configuration dict
+
+    Returns:
+        bool: True if EDIS is granted or not needed, False otherwise
     """
+    # EDIS is only needed for SELL orders, not BUY
+    # This function is called only for SELL transactions in place_gtt_bulk
+
     if cfg and cfg.get('gtt', {}).get('allow_sell_without_edis', False):
         return True
+
+    # Check environment variable for testing
     val = os.environ.get('UPSTOX_EDIS_GRANTED', '0')
-    return val in ('1', 'true', 'True')
+    if val in ('1', 'true', 'True'):
+        return True
+
+    # TODO: Implement real Upstox EDIS API check
+    # This would call Upstox API endpoints to:
+    # 1. Check if EDIS is authorized for the account
+    # 2. Verify pledge status for specific symbols
+    # 3. Handle authorization flow if needed
+
+    logger.warning(f"EDIS check failed for {symbol} - implement real API validation")
+    return False
 
 
 def place_gtt_bulk(access_token: str, plan_rows: list, cfg: Dict[str, Any], dry_run: bool = True, rate_limit_sleep: float = 0.5, per_symbol_retries: int = 3, backoff: float = 1.0, log_path: str = 'outputs/logs/gtt_place_bulk.log', session: Optional[requests.Session] = None) -> list:

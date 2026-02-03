@@ -23,7 +23,9 @@ def test_ensemble_vote_places_gtt_when_conditions_met():
         'TS_Momentum_Flag': 1,
         'Trend_OK': 1,
         'RS_Leader_Flag': 1,
-        'RSI_MACD_Confirm_D': True  # Added for confirmation requirement
+        'RSI_MACD_Confirm_D': True,  # Added for confirmation requirement
+        'RSI_MACD_Confirm_H4': True,  # Added for H4 confirmation requirement
+        'RSI_MACD_Confirm_OK': True  # Computed confirmation flag
     }])
 
     cfg = {'risk': {'stop_multiple_atr': 1.5, 'equity': 100000, 'risk_per_trade_pct': 1.0},

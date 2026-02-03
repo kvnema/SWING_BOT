@@ -88,6 +88,11 @@ gtt:
   min_confidence: 3.0
   risk_multiplier: 1.5
 
+decision:
+  min_confidence: 0.65  # Improved from 0.7 for better signal capture
+  whitelist: []
+  ensemble_min_votes: 2  # Require at least 2 of 4 modules to agree
+
 confidence:
   empirical_bayes_alpha: 2.0
   empirical_bayes_beta: 2.0

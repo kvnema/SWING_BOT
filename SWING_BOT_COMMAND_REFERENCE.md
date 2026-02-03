@@ -2,9 +2,9 @@
 
 ## Overview
 
-SWING_BOT is an autonomous momentum-focused swing trading system for NIFTY 500 stocks with comprehensive EOD pipeline, plan auditing, and Teams notifications. The system integrates AI-driven strategy selection, risk management, and automated order placement.
+SWING_BOT is an autonomous momentum-focused swing trading system for NIFTY 200 stocks and all NSE ETFs with comprehensive EOD pipeline, plan auditing, and Teams notifications. The system integrates AI-driven strategy selection, risk management, and automated order placement.
 
-**Current Date:** January 7, 2026
+**Current Date:** January 8, 2026
 **System Status:** Production Ready
 **Market Focus:** NSE (National Stock Exchange of India)
 
@@ -30,18 +30,18 @@ SWING_BOT operates through a modular pipeline:
 ### 1. Data Management Commands
 
 #### `fetch_data` - Historical Data Fetching
-**Purpose:** Download historical OHLCV data for NIFTY50 stocks and ETFs
+**Purpose:** Download historical OHLCV data for NIFTY 200 stocks and all NSE ETFs
 **Automation:** Manual (run daily)
 **Use Case:** Initial setup, data refresh, backtesting preparation
 
 ```bash
-python -m src.cli fetch_data --days 365 --out data/nifty50_data.csv --include-etfs
+python -m src.cli fetch_data --days 365 --out data/nifty200_etfs_data.csv --include-etfs
 ```
 
 **Parameters:**
 - `--days`: Number of trading days to fetch (default: 365)
 - `--out`: Output CSV file path
-- `--include-etfs`: Include NSE ETFs in data fetch
+- `--include-etfs`: Include all NSE ETFs in data fetch (default: true)
 - `--max-workers`: Parallel fetch workers (default: 8)
 
 #### `fetch-and-validate` - Data Fetch with Validation
@@ -50,7 +50,7 @@ python -m src.cli fetch_data --days 365 --out data/nifty50_data.csv --include-et
 **Use Case:** Ensure data quality before pipeline execution
 
 ```bash
-python -m src.cli fetch-and-validate --out data/nifty50_data.csv --days 500 --max-age-days 1
+python -m src.cli fetch-and-validate --out data/nifty200_etfs_data.csv --days 500 --max-age-days 1
 ```
 
 **Parameters:**
@@ -64,7 +64,7 @@ python -m src.cli fetch-and-validate --out data/nifty50_data.csv --days 500 --ma
 **Use Case:** Technical analysis, multi-timeframe strategies
 
 ```bash
-python -m src.cli fetch-all --symbols RELIANCE.NS,TCS.NS --timeframes 1d,1w,1mo --start-date 2023-01-01 --end-date 2024-12-31
+python -m src.cli fetch-all --timeframes 1d,1w,1mo --start-date 2023-01-01 --end-date 2024-12-31
 ```
 
 ### 2. Strategy Analysis & Backtesting
@@ -75,12 +75,11 @@ python -m src.cli fetch-all --symbols RELIANCE.NS,TCS.NS --timeframes 1d,1w,1mo 
 **Use Case:** Strategy parameter tuning, performance optimization
 
 ```bash
-python -m src.cli wfo --path data/nifty50_data.csv --strategy Donchian --config config.yaml
+python -m src.cli wfo --path data/nifty200_etfs_data.csv --config config.yaml
 ```
 
 **Parameters:**
-- `--strategy`: Strategy to optimize
-- `--config`: Configuration file path
+- `--config`: Configuration file path (defines strategies to optimize)
 - `--confirm-rsi/macd/hist`: Require additional confirmations
 
 #### `backtest` - Strategy Backtesting
@@ -89,7 +88,7 @@ python -m src.cli wfo --path data/nifty50_data.csv --strategy Donchian --config 
 **Use Case:** Strategy performance validation, risk assessment
 
 ```bash
-python -m src.cli backtest --path data/nifty50_data.csv --out outputs/backtest_results.csv --confirm-rsi
+python -m src.cli backtest --path data/nifty200_etfs_data.csv --out outputs/backtest_results.csv --confirm-rsi
 ```
 
 **Parameters:**
@@ -102,7 +101,7 @@ python -m src.cli backtest --path data/nifty50_data.csv --out outputs/backtest_r
 **Use Case:** AI-driven strategy selection for live trading
 
 ```bash
-python -m src.cli select --path data/nifty50_data.csv --out outputs/selected_strategy.json
+python -m src.cli select --path data/nifty200_etfs_data.csv --out outputs/selected_strategy.json
 ```
 
 ### 3. Screening & Signal Generation
@@ -113,7 +112,7 @@ python -m src.cli select --path data/nifty50_data.csv --out outputs/selected_str
 **Use Case:** Identify potential trading opportunities
 
 ```bash
-python -m src.cli screener --path data/nifty50_data.csv --out outputs/screener_results.csv --live
+python -m src.cli screener --path data/nifty200_etfs_data.csv --out outputs/screener_results.csv --live
 ```
 
 **Parameters:**
@@ -126,11 +125,8 @@ python -m src.cli screener --path data/nifty50_data.csv --out outputs/screener_r
 **Use Case:** Real-time opportunity identification
 
 ```bash
-python -m src.cli live-screener --include-etfs
+python -m src.cli live-screener
 ```
-
-**Parameters:**
-- `--include-etfs`: Include NSE ETFs in screening
 
 #### `multi-tf-excel` - Multi-Timeframe Analysis
 **Purpose:** Generate Excel reports with multiple timeframes
@@ -138,7 +134,7 @@ python -m src.cli live-screener --include-etfs
 **Use Case:** Comprehensive technical analysis across timeframes
 
 ```bash
-python -m src.cli multi-tf-excel --path data/nifty50_data.csv --tfs 1d,1w,1mo --out outputs/multi_tf_analysis.xlsx
+python -m src.cli multi-tf-excel --path data/nifty200_etfs_data.csv --tfs 1d,1w,1mo --out outputs/multi_tf_analysis.xlsx
 ```
 
 ### 4. Trading Plan Generation
@@ -149,11 +145,10 @@ python -m src.cli multi-tf-excel --path data/nifty50_data.csv --tfs 1d,1w,1mo --
 **Use Case:** Generate executable trading plans with entry/exit levels
 
 ```bash
-python -m src.cli gtt-plan --path data/nifty50_data.csv --strategy Donchian --top 25 --out outputs/gtt_plan.csv
+python -m src.cli gtt-plan --path data/nifty200_etfs_data.csv --top 25 --out outputs/gtt_plan.csv
 ```
 
 **Parameters:**
-- `--strategy`: Primary strategy to use
 - `--top`: Number of stocks to select
 - `--min-score`: Minimum composite score threshold
 - `--fallback-strategies`: Backup strategies if primary fails
@@ -164,7 +159,7 @@ python -m src.cli gtt-plan --path data/nifty50_data.csv --strategy Donchian --to
 **Use Case:** Ensure plans meet risk management criteria
 
 ```bash
-python -m src.cli plan-audit --plan outputs/gtt_plan.csv --indicators data/nifty50_data.csv --latest data/latest_quotes.csv --out outputs/audited_plan.csv --strict
+python -m src.cli plan-audit --plan outputs/gtt_plan.csv --indicators data/nifty200_etfs_data.csv --latest data/latest_quotes.csv --out outputs/audited_plan.csv --strict
 ```
 
 **Parameters:**
@@ -260,7 +255,7 @@ python -m src.cli teams-notify --plan outputs/audited_plan.csv --date 2024-01-07
 **Use Case:** Complete autonomous daily trading cycle
 
 ```bash
-python -m src.cli orchestrate-eod --data-out data/nifty50_indicators_full.csv --max-age-days 1 --required-days 500 --top 25 --strict --post-teams --multi-tf --dashboard
+python -m src.cli orchestrate-eod --data-out data/nifty200_etfs_indicators_full.csv --max-age-days 1 --required-days 500 --top 25 --strict --post-teams --multi-tf --dashboard
 ```
 
 **Parameters:**
@@ -275,7 +270,7 @@ python -m src.cli orchestrate-eod --data-out data/nifty50_indicators_full.csv --
 **Use Case:** Complete live trading execution
 
 ```bash
-python -m src.cli orchestrate-live --data-out data/nifty50_indicators_full.csv --top 25 --strict --post-teams --live --place-gtt --reconcile-gtt --confidence-threshold 0.20
+python -m src.cli orchestrate-live --data-out data/nifty200_etfs_indicators_full.csv --top 25 --strict --post-teams --place-gtt --reconcile-gtt --confidence-threshold 0.20
 ```
 
 **Parameters:**
@@ -291,7 +286,7 @@ python -m src.cli orchestrate-live --data-out data/nifty50_indicators_full.csv -
 **Use Case:** Intraday monitoring and alerts
 
 ```bash
-python -m src.cli hourly-update --data-path data/nifty50_data_today.csv --output-dir outputs/hourly --top 25 --notify-email --notify-telegram
+python -m src.cli hourly-update --data-path data/nifty200_etfs_data_today.csv --output-dir outputs/hourly --top 25 --notify-email --notify-telegram
 ```
 
 **Parameters:**
@@ -339,7 +334,7 @@ python -m src.cli diagnose-universe --max-symbols 50 --verbose --output outputs/
 **Use Case:** Continuous performance monitoring
 
 ```bash
-python -m src.cli auto-test --symbol RELIANCE.NS --config config.yaml
+python -m src.cli auto-test --config config.yaml
 ```
 
 #### `self-optimize` - Parameter Self-Optimization
@@ -357,7 +352,7 @@ python -m src.cli self-optimize --config config.yaml
 **Use Case:** Ensure data integrity
 
 ```bash
-python -m src.cli validate-latest --data data/nifty50_data.csv --screener outputs/screener_results.csv --plan outputs/gtt_plan.csv
+python -m src.cli validate-latest --data data/nifty200_etfs_data.csv --screener outputs/screener_results.csv --plan outputs/gtt_plan.csv
 ```
 
 ### 9. Monitoring & Metrics
@@ -374,114 +369,6 @@ python -m src.cli metrics-exporter --port 9108 --mode prometheus
 **Parameters:**
 - `--mode`: prometheus or otlp
 - `--port`: Server port
-
----
-
-## 🖥️ Standalone Scripts
-
-### Dashboard & Visualization
-
-#### `run_dashboard.py` - Web Dashboard
-**Purpose:** Launch interactive Streamlit web dashboard
-**Automation:** Manual (run for visualization)
-**Use Case:** Real-time trading monitoring and analysis
-
-```bash
-python run_dashboard.py
-```
-**Access:** http://localhost:8501
-
-#### `diagnose_dashboard.py` - Dashboard Diagnostics
-**Purpose:** Troubleshoot dashboard data loading issues
-**Automation:** Manual (run when dashboard has issues)
-**Use Case:** Debug dashboard data sources and freshness
-
-```bash
-python diagnose_dashboard.py
-```
-
-### Market Monitoring
-
-#### `monitor_market.py` - Market Monitor
-**Purpose:** Monitor market conditions and generate reports
-**Automation:** Can be automated (continuous/daily)
-**Use Case:** Market surveillance and reporting
-
-```bash
-# One-time market check
-python monitor_market.py --mode once
-
-# Continuous monitoring
-python monitor_market.py --mode continuous --interval 3600
-
-# Daily market report
-python monitor_market.py --mode daily --daily-report
-```
-
-### Live Trading
-
-#### `live_trader.py` - Live Trading System
-**Purpose:** Real-time trading execution system
-**Automation:** Manual (requires active supervision)
-**Use Case:** Live market trading with risk management
-
-```bash
-# Live trading with risk parameters
-python live_trader.py --capital 500000 --max-positions 3 --risk-per-trade 0.01
-
-# Trading status check
-python live_trader.py --mode status
-
-# Sector analysis
-python live_trader.py --mode sector-analysis --symbols RELIANCE.NS,TCS.NS
-```
-
-#### `paper_trade.py` - Paper Trading
-**Purpose:** Simulated trading for testing strategies
-**Automation:** Manual
-**Use Case:** Strategy testing without real money
-
-```bash
-python paper_trade.py --scan-only
-```
-
-### Analysis Tools
-
-#### `walk_forward_test.py` - Walk-Forward Testing
-**Purpose:** Advanced strategy validation using walk-forward analysis
-**Automation:** Manual
-**Use Case:** Robust strategy performance testing
-
-```bash
-python walk_forward_test.py --symbol RELIANCE.NS --start-date 2023-01-01 --end-date 2024-12-01
-```
-
-#### `backtest_swing_bot.py` - Custom Backtesting
-**Purpose:** Specialized backtesting for SWING_BOT strategies
-**Automation:** Manual
-**Use Case:** Detailed strategy performance analysis
-
-```bash
-python backtest_swing_bot.py
-```
-
-#### `risk_reward_analysis.py` - Risk Analysis
-**Purpose:** Analyze risk-reward profiles of trading plans
-**Automation:** Manual
-**Use Case:** Risk assessment and optimization
-
-```bash
-python risk_reward_analysis.py
-```
-
-#### `analyze_stocks.py` - Stock Analysis
-**Purpose:** Deep analysis of individual stocks
-**Automation:** Manual
-**Use Case:** Fundamental and technical stock analysis
-
-```bash
-python analyze_stocks.py
-```
 
 ---
 

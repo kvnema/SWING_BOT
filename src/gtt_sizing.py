@@ -120,7 +120,11 @@ def compute_decision_confidence(row: pd.Series, model: pd.DataFrame, indicators_
             # Find the latest indicators for this symbol
             symbol_data = indicators_df[indicators_df['Symbol'] == symbol]
             if not symbol_data.empty:
-                latest_row = symbol_data.sort_values('Date').iloc[-1]
+                # Sort by Date if available, otherwise assume data is already latest
+                if 'Date' in symbol_data.columns:
+                    latest_row = symbol_data.sort_values('Date').iloc[-1]
+                else:
+                    latest_row = symbol_data.iloc[0]  # Assume first row is latest if no Date column
                 context = context_from_row(latest_row)
             else:
                 context = context_from_row(row)
@@ -385,7 +389,7 @@ def build_gtt_plan(latest_df: pd.DataFrame, strategy_name: str, cfg: dict, instr
             reasons.append('RS_Not_Leader')
 
         # RSI/MACD confirmation
-        if not row.get('RSI_MACD_Confirm_OK', False):
+        if not row.get('RSI_MACD_Confirmations_OK', False):
             reasons.append('RSI_MACD_Confirm_Fail')
 
         # Decision confidence

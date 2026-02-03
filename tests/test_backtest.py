@@ -6,6 +6,7 @@ from src.backtest import backtest_strategy, walk_forward_backtest
 def make_fixture():
     d = pd.DataFrame({
         'Date': pd.date_range('2025-01-01', periods=50),
+        'Symbol': ['TEST'] * 50,
         'Close': list(range(100,150)),
         'ATR14': [1.0]*50,
         'SEPA_Flag': [0]*49 + [1]

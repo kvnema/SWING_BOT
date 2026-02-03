@@ -33,7 +33,6 @@ from .multi_tf_excel import build_multi_tf_excel
 from .ltp_reconcile import reconcile_plan
 from .auto_test import run_daily_auto_test
 from .self_optimize import run_daily_self_optimization
-from .self_enhance import SelfEnhancementSystem
 # New enhancement modules
 from .ml_filter import MLSignalFilter, SentimentFilter
 from .risk_manager import AdaptiveRiskManager, EnhancedDiversification, CircuitBreaker, VolatilityAdjustedSizer
@@ -806,28 +805,36 @@ def cmd_orchestrate_eod(args):
             if broker == 'upstox':
                 from .token_manager import UpstoxTokenManager
                 token_manager = UpstoxTokenManager()
+                token_valid = token_manager.check_and_refresh_token()
             elif broker == 'icici':
                 from .icici_token_manager import ICICISessionManager
                 token_manager = ICICISessionManager()
+                token_valid = token_manager.check_and_refresh_token()
             elif broker == 'indmoney':
                 from .indmoney_token_manager import INDMONEYTokenManager
                 token_manager = INDMONEYTokenManager()
+                token_valid = token_manager.check_and_refresh_token()
+            elif broker == 'angel':
+                # Angel One uses JWT tokens that are managed in the API wrapper
+                from .angel_one_api import get_angel_api
+                api = get_angel_api()
+                token_valid = api is not None
             else:
                 raise ValueError(f"Unsupported broker: {broker}")
 
-            token_valid = token_manager.check_and_refresh_token()
-
             if not token_valid:
-                print(f"❌ {broker.upper()} token refresh failed - cannot proceed with orchestration")
+                print(f"❌ {broker.upper()} API authentication failed - cannot proceed with orchestration")
                 if broker == 'upstox':
                     print("   Please run: python src/token_manager.py --refresh")
                 elif broker == 'icici':
-                    print("   Please run: .\setup_icici.ps1 -Authenticate")
+                    print("   Please run: .\\setup_icici.ps1 -Authenticate")
                 elif broker == 'indmoney':
                     print("   Please update INDMONEY_ACCESS_TOKEN in .env file")
+                elif broker == 'angel':
+                    print("   Please check ANGEL_ONE_API_KEY, ANGEL_ONE_CLIENT_ID, ANGEL_ONE_JWT_TOKEN in .env file")
                 sys.exit(1)
 
-            print(f"✅ {broker.upper()} API token is valid")
+            print(f"✅ {broker.upper()} API authentication is valid")
         except Exception as e:
             print(f"⚠️  Token check failed: {e}")
             print("   Proceeding anyway (token may be valid)...")
@@ -879,6 +886,28 @@ def cmd_orchestrate_eod(args):
         main_meta = load_metadata(f"{args.data_out}/nifty50_data_today.csv")
         validate_recency(main_meta, today_ist, max_age_days=args.max_age_days)
         validate_window(main_meta, required_days=args.required_days)
+
+        # Check data completeness
+        print("🔍 Step 1.1: Validating data completeness...")
+        from .data_fetch import validate_candle_completeness
+        timeframes_to_check = ['1d', '1w']  # Check key timeframes for validation
+        completeness_stats = validate_candle_completeness(
+            symbols=list(main_meta['symbols'].keys()),
+            timeframes=timeframes_to_check,
+            days_requested=args.required_days,
+            include_options=False,  # Skip options for speed
+            sample_size=10  # Check 10 symbols for validation
+        )
+        
+        if not completeness_stats['completeness_ok']:
+            warning_msg = completeness_stats.get('warning_message', 'Data completeness validation failed')
+            print(f"⚠️  {warning_msg}")
+            if completeness_stats['average_completeness'] < 80.0:
+                print("🚨 CRITICAL: Data completeness is very low. Consider using alternative data sources.")
+            else:
+                print("📊 Proceeding with caution - backtesting results may be less reliable.")
+        else:
+            print(f"✅ Data completeness OK: {completeness_stats['average_completeness']:.1f}% average across {completeness_stats['total_tested']} tests")
         validate_symbols(main_meta, expected_count=99)  # Match API-returned data
         print(f"✅ Data validated: {summarize(main_meta)}")
         
@@ -1708,6 +1737,11 @@ def cmd_orchestrate_live(args):
                     access_token = os.environ.get('ICICI_SESSION_TOKEN')
                 elif broker == 'indmoney':
                     access_token = os.environ.get('INDMONEY_ACCESS_TOKEN')
+                elif broker == 'angel':
+                    # Angel One uses API wrapper
+                    from .angel_one_api import get_angel_api
+                    api = get_angel_api()
+                    access_token = 'angel_one' if api else None
                 else:
                     access_token = None
 
@@ -1849,11 +1883,18 @@ def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False, confi
     elif broker == 'indmoney':
         access_token = os.environ.get('INDMONEY_ACCESS_TOKEN')
         token_env_var = 'INDMONEY_ACCESS_TOKEN'
+    elif broker == 'angel':
+        # Angel One uses API wrapper, not direct token
+        access_token = 'angel_one_api'  # Special marker for Angel One
+        token_env_var = 'ANGEL_ONE_JWT_TOKEN'
+        if not os.environ.get('ANGEL_ONE_JWT_TOKEN'):
+            print(f"❌ {token_env_var} not found in environment")
+            return placed_orders
     else:
         print(f"❌ Unsupported broker: {broker}")
         return placed_orders
 
-    if not access_token:
+    if broker != 'angel' and not access_token:
         print(f"❌ {token_env_var} not found in environment")
         return placed_orders
 
@@ -1946,6 +1987,20 @@ def place_live_gtt_orders(plan_df: pd.DataFrame, enable_tsl: bool = False, confi
                 )
             elif broker == 'indmoney':
                 from .indmoney_gtt import place_gtt_order_multi
+                result = place_gtt_order_multi(
+                    instrument_token=str(row['InstrumentToken']),
+                    quantity=1,  # Fixed quantity as requested
+                    product="D",
+                    rules=rules,
+                    transaction_type="BUY",
+                    access_token=access_token,
+                    tsl_gap=0.5 if enable_tsl else None,  # Conservative TSL gap
+                    dry_run=False,
+                    retries=3,
+                    backoff=1.0
+                )
+            elif broker == 'angel':
+                from .angel_one_gtt import place_gtt_order_multi
                 result = place_gtt_order_multi(
                     instrument_token=str(row['InstrumentToken']),
                     quantity=1,  # Fixed quantity as requested
@@ -2508,7 +2563,7 @@ def main():
     p.add_argument('--confirm-macd', action='store_true', help='Require MACD confirmation for entries')
     p.add_argument('--confirm-hist', action='store_true', help='Require MACD histogram rising for entries')
     p.add_argument('--skip-token-check', action='store_true', help='Skip token validation (for demo/testing)')
-    p.add_argument('--broker', choices=['upstox', 'icici', 'indmoney'], default='upstox', help='Broker to use for API operations')
+    p.add_argument('--broker', choices=['upstox', 'icici', 'indmoney', 'angel'], default='upstox', help='Broker to use for API operations')
     p.set_defaults(func=cmd_orchestrate_eod)
 
     p = sub.add_parser('orchestrate-live', help='Run live EOD pipeline: fetch live quotes → enhanced screener → backtest → select → enhanced plan → audit → LTP reconcile → risk-managed GTT placement')
@@ -2530,7 +2585,7 @@ def main():
     p.add_argument('--enable-ml-filter', action='store_true', help='Enable ML-based signal filtering')
     p.add_argument('--enable-risk-management', action='store_true', help='Enable enhanced risk management')
     p.add_argument('--enable-sentiment', action='store_true', help='Enable sentiment analysis filtering')
-    p.add_argument('--broker', choices=['upstox', 'icici', 'indmoney'], default='upstox', help='Broker to use for API operations')
+    p.add_argument('--broker', choices=['upstox', 'icici', 'indmoney', 'angel'], default='upstox', help='Broker to use for API operations')
     p.set_defaults(func=cmd_orchestrate_live)
 
     p = sub.add_parser('hourly-update', help='Run hourly update: screener → Excel → notifications (no order placement)')
@@ -2577,6 +2632,26 @@ def main():
     p.add_argument('--generate-report', action='store_true', default=True, help='Generate HTML test report (default: True)')
     p.add_argument('--config', default=None, help='Path to config.yaml')
     p.set_defaults(func=cmd_run_full_test)
+
+    p = sub.add_parser('diagnose-upstox-data-completeness', help='Verify Upstox API data completeness for SWING_BOT universe')
+    p.add_argument('--days', type=int, default=1000, help='Number of days to request historical data for (default: 1000)')
+    p.add_argument('--sample-size', type=int, default=50, help='Number of symbols to sample (default: 50, use 0 for all)')
+    p.add_argument('--full-universe', action='store_true', help='Test full universe instead of sample')
+    p.add_argument('--output', default='outputs/upstox_completeness_report.csv', help='Output CSV report path')
+    p.add_argument('--rate-limit', type=float, default=0.5, help='Seconds to sleep between API calls (default: 0.5)')
+    p.add_argument('--mock', action='store_true', help='Use mock data for testing')
+    p.set_defaults(func=cmd_diagnose_upstox_completeness)
+
+    p = sub.add_parser('diagnose-candle-completeness', help='Verify Upstox API candle data completeness across multiple timeframes')
+    p.add_argument('--timeframes', default='1d,1w,1mo', help='Comma-separated timeframes to test (default: 1d,1w,1mo)')
+    p.add_argument('--days', type=int, default=1000, help='Number of days to request historical data for (default: 1000)')
+    p.add_argument('--sample-size', type=int, default=50, help='Number of symbols to sample (default: 50, use 0 for all)')
+    p.add_argument('--full-universe', action='store_true', help='Test full universe instead of sample')
+    p.add_argument('--output', default='outputs/candle_completeness_report.csv', help='Output CSV report path')
+    p.add_argument('--rate-limit', type=float, default=0.5, help='Seconds to sleep between API calls (default: 0.5)')
+    p.add_argument('--include-options', action='store_true', help='Include options chain verification for F&O stocks')
+    p.add_argument('--mock', action='store_true', help='Use mock data for testing')
+    p.set_defaults(func=cmd_diagnose_candle_completeness)
 
     args = parser.parse_args()
     if not hasattr(args, 'func'):
@@ -3004,6 +3079,116 @@ def cmd_diagnose_dashboard(args):
 
     except Exception as e:
         print(f"❌ Dashboard diagnostic failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_diagnose_upstox_completeness(args):
+    """Diagnose Upstox API data completeness for SWING_BOT universe."""
+    try:
+        from .diagnose_upstox_completeness import UpstoxCompletenessDiagnostic
+
+        print("🔍 Starting Upstox Data Completeness Diagnostic...")
+        print(f"Days requested: {args.days}")
+        print(f"Sample size: {args.sample_size if not args.full_universe else 'Full universe'}")
+        print(f"Output: {args.output}")
+        print(f"Rate limit: {args.rate_limit}s")
+        print(f"Mock mode: {args.mock}")
+        print("-" * 60)
+
+        diagnostic = UpstoxCompletenessDiagnostic()
+        results = diagnostic.run_diagnostic(
+            days=args.days,
+            sample_size=args.sample_size if not args.full_universe else 0,
+            output_path=args.output,
+            rate_limit=args.rate_limit,
+            mock=args.mock
+        )
+        
+        diagnostic.generate_report(results, args.output)
+
+        # Print summary
+        total_symbols = len(results)
+        full_symbols = sum(1 for r in results.values() if r['status'] == 'FULL')
+        limited_symbols = sum(1 for r in results.values() if r['status'] == 'LIMITED')
+        missing_symbols = sum(1 for r in results.values() if r['status'] == 'MISSING')
+        
+        avg_completeness = sum(r['completeness_pct'] for r in results.values() if r['status'] != 'MISSING') / max(1, len([r for r in results.values() if r['status'] != 'MISSING']))
+        
+        print("\n📊 Summary:")
+        print(f"   Total symbols tested: {total_symbols}")
+        print(f"   Full data (≥90%): {full_symbols}")
+        print(f"   Limited data (<90%): {limited_symbols}")
+        print(f"   Missing data: {missing_symbols}")
+        print(f"   Average completeness: {avg_completeness:.1f}%")
+        
+        if limited_symbols > 0:
+            print("⚠️  WARNING: Some symbols have limited historical data!")
+            print("   This may affect backtesting accuracy and signal reliability.")
+        
+        print(f"✅ Diagnostic completed. Report saved to: {args.output}")
+
+    except Exception as e:
+        print(f"❌ Upstox completeness diagnostic failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_diagnose_candle_completeness(args):
+    """Diagnose Upstox API candle data completeness across multiple timeframes."""
+    try:
+        from .diagnose_candle_completeness import CandleCompletenessDiagnostic
+
+        timeframes = [tf.strip() for tf in args.timeframes.split(',')]
+        
+        print("🔍 Starting Upstox Candle Completeness Diagnostic...")
+        print(f"Timeframes: {', '.join(timeframes)}")
+        print(f"Days requested: {args.days}")
+        print(f"Sample size: {args.sample_size if not args.full_universe else 'Full universe'}")
+        print(f"Output: {args.output}")
+        print(f"Rate limit: {args.rate_limit}s")
+        print(f"Include options: {args.include_options}")
+        print(f"Mock mode: {args.mock}")
+        print("-" * 60)
+
+        diagnostic = CandleCompletenessDiagnostic()
+        results = diagnostic.run_diagnostic(
+            timeframes=timeframes,
+            days=args.days,
+            sample_size=args.sample_size if not args.full_universe else 0,
+            output_path=args.output,
+            rate_limit=args.rate_limit,
+            include_options=args.include_options,
+            mock=args.mock
+        )
+        
+        diagnostic.generate_report(results, args.output)
+
+        # Print summary
+        total_tests = len(results)
+        full_tests = sum(1 for r in results.values() if r['status'] == 'FULL')
+        limited_tests = sum(1 for r in results.values() if r['status'] == 'LIMITED')
+        missing_tests = sum(1 for r in results.values() if r['status'] == 'MISSING')
+        
+        avg_completeness = sum(r['completeness_pct'] for r in results.values() if r['status'] != 'MISSING') / max(1, len([r for r in results.values() if r['status'] != 'MISSING']))
+        
+        print("\n📊 Summary:")
+        print(f"   Total tests: {total_tests}")
+        print(f"   Full data (≥90%): {full_tests}")
+        print(f"   Limited data (<90%): {limited_tests}")
+        print(f"   Missing data: {missing_tests}")
+        print(f"   Average completeness: {avg_completeness:.1f}%")
+        
+        if limited_tests > 0:
+            print("⚠️  WARNING: Some symbols/timeframes have limited historical data!")
+            print("   This may affect backtesting accuracy and signal reliability.")
+        
+        print(f"✅ Diagnostic completed. Report saved to: {args.output}")
+
+    except Exception as e:
+        print(f"❌ Candle completeness diagnostic failed: {str(e)}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
