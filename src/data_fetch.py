@@ -191,7 +191,53 @@ def fetch_single_instrument(symbol: str, days: int, headers: Dict[str, str], bro
             if not candles:
                 return symbol, None, "NO_DATA"
             df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
-                
+
+        elif broker.lower() == 'dhan':
+            # Use DhanClient for historical data if available; fall back to Upstox endpoint otherwise
+            try:
+                from .dhan_api import DhanClient
+
+                client = DhanClient()
+                # DHAN expects symbol without .NS suffix
+                hist = client.get_historical(clean_symbol, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), interval='1d')
+
+                # Normalize possible response shapes
+                candles = None
+                if isinstance(hist, dict):
+                    # Common shape: {'data': {'candles': [...]} }
+                    if 'data' in hist and isinstance(hist['data'], dict) and 'candles' in hist['data']:
+                        candles = hist['data']['candles']
+                    elif 'candles' in hist:
+                        candles = hist['candles']
+                    else:
+                        # Might already be a list nested somewhere
+                        for v in hist.values():
+                            if isinstance(v, list):
+                                candles = v
+                                break
+                elif isinstance(hist, list):
+                    candles = hist
+
+                if not candles:
+                    return symbol, None, "NO_DATA"
+
+                # Expect candles as list of [timestamp, open, high, low, close, volume, ...] or dicts
+                if candles and isinstance(candles[0], (list, tuple)):
+                    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'][:len(candles[0])])
+                else:
+                    df = pd.DataFrame(candles)
+
+            except Exception as e:
+                logger.warning(f"DHAN historical fetch failed for {symbol}: {e}, falling back to Upstox")
+                url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/day/{end_date.strftime('%Y-%m-%d')}/{start_date.strftime('%Y-%m-%d')}"
+                data = _make_api_request(url, headers)
+                if not data:
+                    return symbol, None, "API_ERROR"
+                candles = data.get('data', {}).get('candles', [])
+                if not candles:
+                    return symbol, None, "NO_DATA"
+                df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+
         else:
             return symbol, None, f"UNSUPPORTED_BROKER: {broker}"
 
